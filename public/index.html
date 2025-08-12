@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" href="%PUBLIC_URL%/static/icons/favicon.ico" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#000000" />
+    <meta
+      name="description"
+      content="24agents.science - Tools and Infrastructure for Autonomous Scientific Research"
+    />
+    
+    <!-- Cache busting meta tags -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+    
+    <!-- Apple Touch Icons -->
+    <link rel="apple-touch-icon" sizes="180x180" href="%PUBLIC_URL%/static/icons/apple-touch-icon.png" />
+    
+    <!-- Favicon Icons -->
+    <link rel="icon" type="image/png" sizes="32x32" href="%PUBLIC_URL%/static/icons/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="%PUBLIC_URL%/static/icons/favicon-16x16.png" />
+    
+    <!-- Microsoft Tile -->
+    <meta name="msapplication-TileColor" content="#da532c" />
+    <meta name="msapplication-config" content="%PUBLIC_URL%/static/icons/browserconfig.xml" />
+    
+    <!-- Safari Pinned Tab -->
+    <link rel="mask-icon" href="%PUBLIC_URL%/static/icons/safari-pinned-tab.svg" color="#5bbad5" />
+    
+    <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
+    
+    <title>24agents.science - Autonomous Scientific Research Platform</title>
+    
+    <!-- Force clear old service worker and cache -->
+    <script>
+      // Service Worker Cache Clearing
+      (function() {
+        console.log('24agents: Starting cache clearing process...');
+        
+        // Prevent multiple reloads
+        const hasAlreadyCleared = sessionStorage.getItem('24agents_cache_cleared');
+        const isReloading = sessionStorage.getItem('24agents_reloading');
+        
+        if (isReloading) {
+          console.log('24agents: Already in reload process, skipping service worker registration');
+          sessionStorage.removeItem('24agents_reloading');
+          return;
+        }
+        // Add cache-busting meta tags
+        const meta = document.createElement('meta');
+        meta.setAttribute('http-equiv', 'Cache-Control');
+        meta.setAttribute('content', 'no-cache, no-store, must-revalidate');
+        document.head.appendChild(meta);
+        
+        const pragma = document.createElement('meta');
+        pragma.setAttribute('http-equiv', 'Pragma');
+        pragma.setAttribute('content', 'no-cache');
+        document.head.appendChild(pragma);
+        
+        const expires = document.createElement('meta');
+        expires.setAttribute('http-equiv', 'Expires');
+        expires.setAttribute('content', '0');
+        document.head.appendChild(expires);
+      })();
+    </script>
+    
+    <!-- Analytics placeholder -->
+  </head>
+  <body>
+    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <div id="root"></div>
+    <!--
+      This HTML file is a template.
+      If you open it directly in the browser, you will see an empty page.
+
+      You can add webfonts, meta tags, or analytics to this file.
+      The build step will place the bundled scripts into the <body> tag.
+
+      To begin the development, run `npm start` or `yarn start`.
+      To create a production bundle, use `npm run build` or `yarn build`.
+    -->
+  </body>
+</html>
