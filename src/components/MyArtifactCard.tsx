@@ -3,7 +3,7 @@ import { PencilIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { formatDistanceToNow } from 'date-fns';
 import StatusBadge from './StatusBadge';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
-import { Tooltip, IconButton, CircularProgress } from '@mui/material';
+import { CircularProgress, Button } from '@mui/material';
 
 interface Author {
   name: string;
@@ -52,19 +52,25 @@ const MyArtifactCard: React.FC<AdminResourceCardProps> = ({
   isLoading = false,
   deletionRequestLoading = false,
 }) => {
-  const [showCopied, setShowCopied] = useState(false);
+  // Copy MCP handler + feedback state
+  const [mcpCopied, setMcpCopied] = useState(false);
+  const copyMcp = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const mcpUrl = 'https://hypha.aicell.io/hypha-agents/mcp/biomni/mcp';
+    navigator.clipboard.writeText(mcpUrl)
+      .then(() => {
+        setMcpCopied(true);
+        setTimeout(() => setMcpCopied(false), 2000);
+      })
+      .catch(err => console.error('Failed to copy MCP URL', err));
+  };
 
   const handleClick = (e: React.MouseEvent, callback?: () => void) => {
     e.stopPropagation();
     if (callback) callback();
   };
 
-  const handleCopyId = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    navigator.clipboard.writeText(id.split('/').pop() || '');
-    setShowCopied(true);
-    setTimeout(() => setShowCopied(false), 2000);
-  };
+  // Removed CopyableInline to match ArtifactCard behavior
 
   return (
     <div className={`relative bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-200 h-[300px] flex flex-col ${
@@ -98,22 +104,30 @@ const MyArtifactCard: React.FC<AdminResourceCardProps> = ({
             <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
           </div>
 
-          <div className="flex items-center gap-1 text-xs text-gray-500 mb-3">
-            <div className="flex items-center gap-1 bg-gray-50 rounded-md px-2 py-1">
+          <div className="flex flex-col items-start gap-1 text-xs text-gray-500 mb-3 min-w-0">
+            <div className="flex items-center gap-1 bg-gray-50 rounded-md px-2 py-1 border border-gray-200/60 min-w-0">
               <span className="font-medium">ID:</span>
-              <code className="font-mono">{id.split('/').pop()}</code>
-              <Tooltip title="Copy ID" placement="top">
-                <IconButton
-                  onClick={handleCopyId}
-                  size="small"
-                  className="ml-1 text-gray-400 hover:text-gray-600"
-                  sx={{ padding: '2px' }}
-                >
-                  <ContentCopyIcon sx={{ fontSize: 14 }} />
-                </IconButton>
-              </Tooltip>
-              {showCopied && (
-                <span className="text-green-600 ml-1">Copied!</span>
+              <code className="font-mono inline-block break-all break-words whitespace-normal max-w-full min-w-0">
+                {id.split('/').pop()}
+              </code>
+            </div>
+            <div className="flex items-center gap-1">
+              <Button 
+                onClick={copyMcp}
+                size="small"
+                variant="outlined"
+                startIcon={<ContentCopyIcon sx={{ fontSize: 14 }} />}
+                sx={{
+                  borderRadius: '8px',
+                  textTransform: 'none',
+                  py: 0.25,
+                  px: 1,
+                }}
+              >
+                Copy MCP
+              </Button>
+              {mcpCopied && (
+                <span className="text-green-600 ml-1 font-medium">Copied!</span>
               )}
             </div>
           </div>

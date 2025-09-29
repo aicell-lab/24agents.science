@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { Card, CardMedia, CardContent, IconButton, Button, Tooltip, Box, Typography, Stack, Chip } from '@mui/material';
+import { Card, CardMedia, CardContent, IconButton, Button } from '@mui/material';
 import DownloadIcon from '@mui/icons-material/Download';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import VisibilityIcon from '@mui/icons-material/Visibility';
@@ -21,7 +21,8 @@ export const ArtifactCard: React.FC<ResourceCardProps> = ({ artifact }) => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const covers = artifact.manifest.covers || [];
   const navigate = useNavigate();
-  const [showCopied, setShowCopied] = useState(false);
+  // Feedback for MCP copy action
+  const [mcpCopied, setMcpCopied] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [canEdit, setCanEdit] = useState(false);
 
@@ -86,12 +87,16 @@ export const ArtifactCard: React.FC<ResourceCardProps> = ({ artifact }) => {
     window.open(`https://hypha.aicell.io/24agents-science/artifacts/${id}/create-zip-file`, '_blank');
   };
 
-  const handleCopyId = (e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent card navigation
-    const id = artifact.id.split('/').pop() || '';
-    navigator.clipboard.writeText(id);
-    setShowCopied(true);
-    setTimeout(() => setShowCopied(false), 2000);
+  // Copy handlers for buttons
+  const copyMcp = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const mcpUrl = 'https://hypha.aicell.io/hypha-agents/mcp/biomni/mcp';
+    navigator.clipboard.writeText(mcpUrl)
+      .then(() => {
+        setMcpCopied(true);
+        setTimeout(() => setMcpCopied(false), 2000);
+      })
+      .catch(err => console.error('Failed to copy MCP URL', err));
   };
 
   const handlePreviewOpen = (e: React.MouseEvent) => {
@@ -288,30 +293,29 @@ export const ArtifactCard: React.FC<ResourceCardProps> = ({ artifact }) => {
             </h3>
           </div>
 
-          <div className="flex items-center gap-1 text-xs text-gray-500">
-            <div className="flex items-center gap-1 bg-white/70 backdrop-blur-sm rounded-lg py-1 border border-white/50">
+          <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 min-w-0">
+            <div className="flex items-center gap-1 bg-white/70 backdrop-blur-sm rounded-lg py-1 px-1.5 border border-white/50 min-w-0">
               <span className="font-medium">ID:</span>
-              <code className="font-mono bg-gray-100/80 text-gray-800 px-2 py-1 rounded-md border border-gray-200/60 text-xs">
+              <code className="font-mono bg-gray-100/80 text-gray-800 px-2 py-1 rounded-md border border-gray-200/60 text-xs inline-block break-all break-words whitespace-normal max-w-full min-w-0">
                 {artifact.id.split('/').pop()}
               </code>
-              <Tooltip title="Copy ID" placement="top">
-                <IconButton
-                  onClick={handleCopyId}
-                  size="small"
-                  className="ml-1 text-gray-400 hover:text-blue-600"
-                  sx={{ 
-                    padding: '2px',
-                    borderRadius: '8px',
-                    transition: 'all 0.3s ease',
-                    '&:hover': {
-                      backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                    }
-                  }}
-                >
-                  <ContentCopyIcon sx={{ fontSize: 14 }} />
-                </IconButton>
-              </Tooltip>
-              {showCopied && (
+            </div>
+            <div className="flex items-center gap-1">
+              <Button 
+                onClick={copyMcp}
+                size="small"
+                variant="outlined"
+                startIcon={<ContentCopyIcon sx={{ fontSize: 14 }} />}
+                sx={{
+                  borderRadius: '8px',
+                  textTransform: 'none',
+                  paddingY: '2px',
+                  paddingX: '8px',
+                }}
+              >
+                Copy MCP
+              </Button>
+              {mcpCopied && (
                 <span className="text-green-600 ml-1 font-medium">Copied!</span>
               )}
             </div>

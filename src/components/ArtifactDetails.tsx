@@ -49,7 +49,7 @@ const ArtifactDetails = () => {
   } | null>(null);
   const [rdfContent, setRdfContent] = useState<string | null>(null);
   const [isRdfDialogOpen, setIsRdfDialogOpen] = useState(false);
-  const [showCopied, setShowCopied] = useState(false);
+  // Removed global showCopied in favor of per-field component state
   const [showModelRunner, setShowModelRunner] = useState(false);
   const [currentContainerId, setCurrentContainerId] = useState<string | null>(null);
   const [containerHeight, setContainerHeight] = useState('400px');
@@ -251,11 +251,59 @@ const ArtifactDetails = () => {
     });
   };
 
-  const handleCopyId = () => {
-    const id = selectedResource?.id.split('/').pop() || '';
-    navigator.clipboard.writeText(id);
-    setShowCopied(true);
-    setTimeout(() => setShowCopied(false), 2000);
+  // Reusable inline copy component for label + code + copy button
+  type CopyableInlineProps = {
+    label: string;
+    value: string;
+    copyTitle?: string;
+  };
+
+  const CopyableInline = ({ label, value, copyTitle = 'Copy' }: CopyableInlineProps) => {
+    const [copied, setCopied] = useState(false);
+
+    const handleCopy = async () => {
+      try {
+        await navigator.clipboard.writeText(value ?? '');
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      } catch (e) {
+        console.error('Failed to copy', e);
+      }
+    };
+
+    return (
+      <div className="flex items-center gap-2">
+        <span>{label}: </span>
+        <code className="bg-white/70 backdrop-blur-sm px-3 py-1.5 rounded-lg border border-white/50 select-all font-mono text-sm">
+          {value}
+        </code>
+        <IconButton
+          onClick={handleCopy}
+          size="small"
+          title={copyTitle}
+          sx={{
+            padding: '8px',
+            backgroundColor: 'rgba(255, 255, 255, 0.7)',
+            backdropFilter: 'blur(4px)',
+            border: '1px solid rgba(255, 255, 255, 0.5)',
+            borderRadius: '12px',
+            transition: 'all 0.3s ease',
+            '&:hover': {
+              backgroundColor: 'rgba(255, 255, 255, 0.9)',
+              borderColor: 'rgba(59, 130, 246, 0.3)',
+              transform: 'scale(1.05)',
+            }
+          }}
+        >
+          <ContentCopyIcon sx={{ fontSize: 16 }} />
+        </IconButton>
+        {copied && (
+          <span className="text-green-600 text-sm font-medium animate-fade-in">
+            Copied!
+          </span>
+        )}
+      </div>
+    );
   };
 
   const handleToggleModelRunner = () => {
@@ -392,37 +440,16 @@ const ArtifactDetails = () => {
         {manifest.id_emoji} {manifest.name} 
         </Typography>
         <Typography variant="subtitle1" color="text.secondary" gutterBottom className="flex items-center gap-2">
-          <span>ID: </span>
-          <code className="bg-white/70 backdrop-blur-sm px-3 py-1.5 rounded-lg border border-white/50 select-all font-mono text-sm">
-            {selectedResource.id.split('/').pop()}
-          </code>
-          <div className="flex items-center gap-2">
-            <IconButton
-              onClick={handleCopyId}
-              size="small"
-              title="Copy ID"
-              sx={{ 
-                padding: '8px',
-                backgroundColor: 'rgba(255, 255, 255, 0.7)',
-                backdropFilter: 'blur(4px)',
-                border: '1px solid rgba(255, 255, 255, 0.5)',
-                borderRadius: '12px',
-                transition: 'all 0.3s ease',
-                '&:hover': { 
-                  backgroundColor: 'rgba(255, 255, 255, 0.9)',
-                  borderColor: 'rgba(59, 130, 246, 0.3)',
-                  transform: 'scale(1.05)',
-                }
-              }}
-            >
-              <ContentCopyIcon sx={{ fontSize: 16 }} />
-            </IconButton>
-            {showCopied && (
-              <span className="text-green-600 text-sm font-medium animate-fade-in">
-                Copied!
-              </span>
-            )}
-          </div>
+          <CopyableInline 
+            label="ID" 
+            value={selectedResource.id.split('/').pop() || ''} 
+            copyTitle="Copy ID" 
+          />
+          <CopyableInline 
+            label="MCP" 
+            value={"https://hypha.aicell.io/hypha-agents/mcp/biomni/mcp"} 
+            copyTitle="Copy MCP URL" 
+          />
         </Typography>
         <Typography variant="body1" sx={{ mb: { xs: 1, sm: 2, md: 3 }, color: '#4b5563', lineHeight: 1.6 }}>{manifest.description}</Typography>
         
