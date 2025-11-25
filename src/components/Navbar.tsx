@@ -7,13 +7,14 @@ import { HiOutlineBeaker } from 'react-icons/hi';
 import { IoDocumentTextOutline, IoCloudUploadOutline } from 'react-icons/io5';
 import { AiOutlineInfoCircle } from 'react-icons/ai';
 import { RiLoginBoxLine } from 'react-icons/ri';
+import { MdAutoFixHigh } from 'react-icons/md';
 import { useHyphaStore } from '../store/hyphaStore';
 
 const Navbar: React.FC = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
-  const { user } = useHyphaStore();
+  const { user, selectedArtifacts } = useHyphaStore();
 
   const isActivePath = (path: string): boolean => {
     return location.pathname.startsWith(path);
@@ -86,6 +87,18 @@ const Navbar: React.FC = () => {
                   Upload
                 </Link>
               )}
+              {selectedArtifacts.length > 0 && location.pathname !== '/composer' && (
+                <Link
+                  to="/composer"
+                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:from-blue-700 hover:to-purple-700 transition-all duration-300 flex items-center backdrop-blur-sm border border-white/20 hover:shadow-lg font-medium relative"
+                >
+                  <MdAutoFixHigh className="mr-2" size={18} />
+                  Composer
+                  <span className="ml-2 bg-white/20 rounded-full px-2 py-0.5 text-xs font-bold">
+                    {selectedArtifacts.length}
+                  </span>
+                </Link>
+              )}
               {user?.email && location.pathname !== '/my-artifacts' && (
                 <Link
                   to="/my-artifacts"
@@ -125,14 +138,27 @@ const Navbar: React.FC = () => {
                 Artifacts
               </Link>
             )}
-            <Link 
-              to="/upload" 
+            <Link
+              to="/upload"
               className="flex items-center px-4 py-3 rounded-xl bg-blue-50/80 text-blue-700 hover:bg-blue-100/90 hover:text-blue-800 transition-all duration-300 backdrop-blur-sm border border-blue-200/60 hover:border-blue-300/70 hover:shadow-md font-medium"
               onClick={() => setIsMobileMenuOpen(false)}
             >
               <IoCloudUploadOutline className="mr-3" size={18} />
               Upload
             </Link>
+            {selectedArtifacts.length > 0 && (
+              <Link
+                to="/composer"
+                className="flex items-center px-4 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:from-blue-700 hover:to-purple-700 transition-all duration-300 backdrop-blur-sm border border-white/20 hover:shadow-lg font-medium"
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                <MdAutoFixHigh className="mr-3" size={18} />
+                Composer
+                <span className="ml-2 bg-white/20 rounded-full px-2 py-0.5 text-xs font-bold">
+                  {selectedArtifacts.length}
+                </span>
+              </Link>
+            )}
             <Link 
               to="/models" 
               className={mobileNavLinkClasses("/models")}
