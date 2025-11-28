@@ -6,6 +6,8 @@ import ArtifactCard from './ArtifactCard';
 import PartnerScroll from './PartnerScroll';
 import { Grid } from '@mui/material';
 import TagSelection from './TagSelection';
+import { v4 as uuidv4 } from 'uuid';
+import { MountPublishedDatasetDialog } from './MountPublishedDatasetDialog';
 
 interface ResourceGridProps {
   type?: 'tool' | 'data' | 'agent' ;
@@ -135,6 +137,13 @@ export const ArtifactGrid: React.FC<ResourceGridProps> = ({ type }) => {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [abortController, setAbortController] = useState<AbortController | null>(null);
+  const [mountDialogOpen, setMountDialogOpen] = useState(false);
+  const [localDatasetId, setLocalDatasetId] = useState<string>('');
+
+  const handleMountClick = () => {
+    setLocalDatasetId(uuidv4());
+    setMountDialogOpen(true);
+  };
 
   const getCurrentType = useCallback(() => {
     const path = location.pathname.split('/')[1];
@@ -344,6 +353,46 @@ export const ArtifactGrid: React.FC<ResourceGridProps> = ({ type }) => {
             </div>
           </div>
         )}
+
+        {/* Mount Dataset Button - Only show for datasets */}
+        {resourceType === 'dataset' && (
+          <div className="max-w-3xl mx-auto mb-6 sm:mb-8 px-2 sm:px-0">
+            <div className="bg-gradient-to-r from-green-50 to-teal-50 border-2 border-green-200 rounded-2xl p-4 sm:p-6 shadow-sm hover:shadow-md transition-all duration-200">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center sm:justify-between gap-4">
+                <div className="flex items-center">
+                  <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center mr-4 shadow-md p-1">
+                    <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-800 mb-1">
+                      Mount Local Dataset
+                    </h3>
+                    <p className="text-sm text-gray-600">
+                      Mount a local folder to serve as a dataset for agents.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={handleMountClick}
+                  className="w-full sm:w-auto sm:ml-2.5 px-6 py-3 bg-gradient-to-r from-green-600 to-teal-600 text-white font-semibold rounded-xl hover:from-green-700 hover:to-teal-700 shadow-md hover:shadow-lg transition-all duration-200 transform hover:scale-105 flex items-center justify-center"
+                >
+                  <span className="mr-2">Mount Dataset</span>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <MountPublishedDatasetDialog 
+          open={mountDialogOpen} 
+          onClose={() => setMountDialogOpen(false)}
+          dataset={{ id: localDatasetId, name: 'Local Dataset', description: 'A locally mounted dataset' }}
+        />
 
         <Grid container spacing={2} sx={{ padding: { xs: 0.5, sm: 1, md: 2 } }}>
           {resources.map((artifact) => (

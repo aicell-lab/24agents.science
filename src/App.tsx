@@ -13,12 +13,14 @@ import Edit from './components/Edit';
 import './index.css'
 import './github-markdown.css'
 import { HyphaProvider } from './HyphaContext';
+import { KernelProvider } from './contexts/KernelContext';
 import AdminDashboard from './pages/AdminDashboard';
 import ReviewArtifacts from './components/ReviewArtifacts';
 import ApiDocs from './components/ApiDocs';
 import TermsOfService from './components/TermsOfService';
 import BioEngineHome from './components/BioEngine/BioEngineHome';
 import BioEngineWorker from './components/BioEngine/BioEngineWorker';
+import MountedDatasetDashboard from './pages/MountedDatasetDashboard';
 
 // Add a utility function to check if footer should be hidden
 const shouldHideFooter = (pathname: string): boolean => {
@@ -87,6 +89,7 @@ const AppContent: React.FC = () => {
           <Route path="/toc" element={<TermsOfService />} />
           <Route path="/bioengine" element={<BioEngineHome />} />
           <Route path="/bioengine/worker" element={<BioEngineWorker />} />
+          <Route path="/local/mounted/:id" element={<MountedDatasetDashboard />} />
         </Routes>
       </main>
       <Footer />
@@ -98,9 +101,11 @@ const AppContent: React.FC = () => {
 const App: React.FC = () => {
   return (
     <HyphaProvider>
-      <HashRouter>
-        <AppContent />
-      </HashRouter>
+      <KernelProvider>
+        <HashRouter>
+          <AppContent />
+        </HashRouter>
+      </KernelProvider>
     </HyphaProvider>
   );
 };
