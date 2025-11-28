@@ -237,7 +237,7 @@ const ReviewArtifacts: React.FC = () => {
       const versionToDelete = viewMode === 'published' ? "latest" : "stage";
       setDeleteLoading(true);
       console.log("DEBUG:", {artifactToDelete, version: versionToDelete})
-      if (versionToDelete == "stage") {
+      if (versionToDelete==="stage") {
         // call discard instead of delete
         await artifactManager.discard({
           artifact_id: artifactToDelete.id,
@@ -278,7 +278,7 @@ const ReviewArtifacts: React.FC = () => {
       const updatedManifest = { ...artifact.manifest };
       updatedManifest.status = newStatus;
 
-      if (newStatus == "accepted"){
+      if (newStatus==="accepted"){
         // commit the artifact to the model zoo
         await artifactManager.commit({
           artifact_id: artifact.id,

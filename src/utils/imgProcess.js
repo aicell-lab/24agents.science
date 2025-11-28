@@ -147,23 +147,23 @@ Float32Array	float32	float32
 Float64Array	float64	float64
    */
   let Constructor;
-  if (tpstr == "uint8") {
+  if (tpstr==="uint8") {
     Constructor = Uint8Array;
-  } else if (tpstr == "int8") {
+  } else if (tpstr==="int8") {
     Constructor = Int8Array;
-  } else if (tpstr == "uint16") {
+  } else if (tpstr==="uint16") {
     Constructor = Uint16Array;
-  } else if (tpstr == "int16") {
+  } else if (tpstr==="int16") {
     Constructor = Int16Array;
-  } else if (tpstr == "uint32") {
+  } else if (tpstr==="uint32") {
     Constructor = Uint32Array;
-  } else if (tpstr == "int32") {
+  } else if (tpstr==="int32") {
     Constructor = Int32Array;
-  } else if (tpstr == "float32") {
+  } else if (tpstr==="float32") {
     Constructor = Float32Array;
-  } else if (tpstr == "float64") {
+  } else if (tpstr==="float64") {
     Constructor = Float64Array;
-  } else if (tpstr == "bool") {
+  } else if (tpstr==="bool") {
     Constructor = Uint8Array;
   } else {
     throw new Error("Unsupported dtype: " + tpstr);
@@ -351,11 +351,11 @@ export function splitForShow(tensor, specAxes) {
     }
   } else if (specAxes.length === 4) {
     if (hasC && hasZ) {
-      if (lenC == 3) {
+      if (lenC===3) {
         newImgs.push(mapAxes(tensor, specAxes, "zyxc"));
-      } else if (lenC == 1) {
+      } else if (lenC===1) {
         newImgs.push(mapAxes(tensor, specAxes, "zyx"));
-      } else if (lenZ == 1) {
+      } else if (lenZ===1) {
         newImgs.push(mapAxes(tensor, specAxes, "cyx"));
       } else {
         // split by c
