@@ -97,6 +97,13 @@ export interface ArtifactInfo {
     license?: string;
     uploader: Uploader;
     status?: string;
+    source?: string; // MCP service name (e.g., "biomni")
+    function_name?: string; // Function name in the MCP service
+    module?: string; // Python module path
+    required_parameters?: any[];
+    optional_parameters?: any[];
+    category?: string;
+    language?: string;
   };
   staging?: any[];
   download_count: number;

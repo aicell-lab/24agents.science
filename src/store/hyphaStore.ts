@@ -64,6 +64,11 @@ export interface HyphaState {
   setReviewArtifactsPage: (page: number) => void;
   setReviewArtifactsTotalItems: (total: number) => void;
   logout: () => void;
+  selectedArtifacts: string[];
+  addToCart: (artifactId: string) => void;
+  removeFromCart: (artifactId: string) => void;
+  clearCart: () => void;
+  isInCart: (artifactId: string) => boolean;
 }
 
 export const useHyphaStore = create<HyphaState>((set, get) => ({
@@ -90,6 +95,7 @@ export const useHyphaStore = create<HyphaState>((set, get) => ({
   myArtifactsTotalItems: 0,
   reviewArtifactsPage: 1,
   reviewArtifactsTotalItems: 0,
+  selectedArtifacts: [],
   setServer: (server) => set({ server }),
   setUser: (user) => set({ user }),
   setIsInitialized: (isInitialized) => set({ isInitialized }),
@@ -302,5 +308,23 @@ export const useHyphaStore = create<HyphaState>((set, get) => ({
       isConnecting: false,
       error: null
     });
+  },
+  addToCart: (artifactId: string) => {
+    set((state) => ({
+      selectedArtifacts: state.selectedArtifacts.includes(artifactId)
+        ? state.selectedArtifacts
+        : [...state.selectedArtifacts, artifactId]
+    }));
+  },
+  removeFromCart: (artifactId: string) => {
+    set((state) => ({
+      selectedArtifacts: state.selectedArtifacts.filter(id => id !== artifactId)
+    }));
+  },
+  clearCart: () => {
+    set({ selectedArtifacts: [] });
+  },
+  isInCart: (artifactId: string) => {
+    return get().selectedArtifacts.includes(artifactId);
   },
 })); 
