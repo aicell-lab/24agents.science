@@ -3,7 +3,7 @@ import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { useKernel } from '../contexts/KernelContext';
 import { useHyphaStore } from '../store/hyphaStore';
 import { get } from '../utils/idb';
-import { DATASET_STARTUP_SCRIPT_URL } from '../lib/datasetStartup';
+import { DATASET_STARTUP_SCRIPT } from '../lib/datasetStartup';
 import { 
   Box, 
   Typography, 
@@ -129,9 +129,7 @@ os.environ["CLIENT_ID"] = "${server.config.client_id}"
 os.environ["HYPHA_TOKEN"] = "${server.config.token || ''}"
 `;
             if (executeCode) {
-              const response = await fetch(DATASET_STARTUP_SCRIPT_URL);
-              const scriptContent = await response.text();
-              await executeCode(envCode + "\n" + scriptContent);
+              await executeCode(envCode + "\n" + DATASET_STARTUP_SCRIPT);
               setHasStarted(true);
               
               // Construct MCP URL
