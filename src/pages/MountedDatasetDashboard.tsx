@@ -129,7 +129,8 @@ os.environ["CLIENT_ID"] = "${server.config.client_id}"
 os.environ["HYPHA_TOKEN"] = "${server.config.token || ''}"
 `;
             if (executeCode) {
-              await executeCode(envCode + "\n" + DATASET_STARTUP_SCRIPT);
+              const combinedCode = envCode + "\n" + DATASET_STARTUP_SCRIPT
+              await executeCode(combinedCode);
               setHasStarted(true);
               
               // Construct MCP URL
