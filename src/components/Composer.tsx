@@ -21,6 +21,7 @@ const Composer: React.FC = () => {
   const [artifacts, setArtifacts] = useState<ArtifactInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [composedUrl, setComposedUrl] = useState<string>('');
+  const [serviceUrl, setServiceUrl] = useState<string>('');
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
 
@@ -88,26 +89,52 @@ const Composer: React.FC = () => {
       // Collect all service functions with their schemas
       const serviceFunctions: any = {};
       const serviceInfos: ArtifactServiceInfo[] = [];
+      const functionNameCounts: Record<string, number> = {};
+      const skippedArtifacts: string[] = [];
 
       for (const artifact of artifacts) {
-        // For demo: use hardcoded service settings
-        const serviceId = 'hypha-agents/biomni';
-        // Function name is the artifact ID (last part after slash)
-        const functionName = artifact.id.split('/').pop() || artifact.id;
+        // Check if this is a tool/function artifact
+        const artifactType = artifact.manifest.type || artifact.type;
+
+        // Skip non-tool artifacts (datasets, models, etc.)
+        if (artifactType === 'dataset' || artifactType === 'model' || artifactType === 'collection') {
+          console.warn(`⊘ Skipping ${artifact.id} - type "${artifactType}" is not supported for MCP composition`);
+          skippedArtifacts.push(`${artifact.manifest.name} (type: ${artifactType})`);
+          continue;
+        }
+
+        // Get service ID and function name from artifact manifest
+        const serviceId = artifact.manifest.source
+          ? `hypha-agents/${artifact.manifest.source}`
+          : 'hypha-agents/biomni'; // fallback for backward compatibility
+
+        // Use the function_name from manifest, or fall back to artifact ID
+        let baseFunctionName = artifact.manifest.function_name
+          || artifact.id.split('/').pop()
+          || artifact.id;
+
+        // Handle function name collisions by appending a counter
+        let functionName = baseFunctionName;
+        if (functionNameCounts[baseFunctionName]) {
+          functionNameCounts[baseFunctionName]++;
+          functionName = `${baseFunctionName}_${functionNameCounts[baseFunctionName]}`;
+        } else {
+          functionNameCounts[baseFunctionName] = 1;
+        }
 
         try {
           // Get the service
-          console.log(`Getting service: ${serviceId}, function: ${functionName}`);
+          console.log(`[${artifact.id}] Getting service: ${serviceId}, function: ${baseFunctionName} -> registering as: ${functionName}`);
           const service = await server.getService(serviceId);
 
-          // Get function from service using the artifact ID as function name
-          const func = service[functionName];
+          // Get function from service using the function name from manifest
+          const func = service[baseFunctionName];
 
           if (func) {
             // Get the schema
             const schema = func.__schema__;
 
-            // Store the function with schema for proxying
+            // Store the function with schema for proxying (using possibly renamed function name)
             serviceFunctions[functionName] = Object.assign(
               async (...args: any[]) => {
                 // Proxy call to original function
@@ -123,17 +150,37 @@ const Composer: React.FC = () => {
               functionId: functionName
             });
 
-            console.log(`Added function ${functionName} from service ${serviceId}`);
+            console.log(`✓ Added function ${functionName} from service ${serviceId}`);
           } else {
-            console.warn(`Function ${functionName} not found in service ${serviceId}`);
+            console.error(`✗ Function ${baseFunctionName} not found in service ${serviceId}`);
+            console.log('Available functions in service:', Object.keys(service).filter(k => typeof service[k] === 'function'));
+            skippedArtifacts.push(`${artifact.manifest.name} (function not found)`);
           }
         } catch (error) {
-          console.error(`Failed to get service for artifact ${artifact.id}:`, error);
+          console.error(`✗ Failed to get service for artifact ${artifact.id}:`, error);
+          skippedArtifacts.push(`${artifact.manifest.name} (error: ${error})`);
         }
       }
 
+      console.log(`\nTotal functions collected: ${Object.keys(serviceFunctions).length}`);
+      console.log('Function names:', Object.keys(serviceFunctions));
+
+      if (skippedArtifacts.length > 0) {
+        console.warn(`\nSkipped ${skippedArtifacts.length} artifact(s):`, skippedArtifacts);
+      }
+
       if (Object.keys(serviceFunctions).length === 0) {
-        throw new Error('No valid services found for selected artifacts');
+        throw new Error('No valid tool artifacts found. Only "tool" type artifacts can be composed into MCP services. Datasets, models, and collections are not supported.');
+      }
+
+      // Show warning if some artifacts were skipped
+      if (skippedArtifacts.length > 0) {
+        const warningMsg = `Note: ${skippedArtifacts.length} artifact(s) were skipped: ${skippedArtifacts.join(', ')}. Only "tool" type artifacts can be composed.`;
+        console.warn(warningMsg);
+        setSnackbarMessage(warningMsg);
+        setSnackbarOpen(true);
+        // Wait a bit before continuing
+        await new Promise(resolve => setTimeout(resolve, 2000));
       }
 
       setSnackbarMessage('Registering composed service...');
@@ -155,13 +202,15 @@ const Composer: React.FC = () => {
       });
 
       // Build the service URL and convert to MCP URL
-      const serviceUrl = `${server.config.server_url}/${server.config.workspace}/services/${composedServiceId}`;
-      const mcpUrl = serviceUrl.replace('/services/', '/mcp/') + '/mcp';
+      const serverUrl = server.config.server_url || 'https://hypha.aicell.io';
+      const builtServiceUrl = `${serverUrl}/${server.config.workspace}/services/${composedServiceId}`;
+      const mcpUrl = builtServiceUrl.replace('/services/', '/mcp/') + '/mcp';
 
       console.log('✓ Composed service registered!');
-      console.log('Service URL:', serviceUrl);
+      console.log('Service URL:', builtServiceUrl);
       console.log('MCP URL:', mcpUrl);
 
+      setServiceUrl(builtServiceUrl);
       setComposedUrl(mcpUrl);
       setSnackbarMessage('Composed service created successfully!');
       setSnackbarOpen(true);
@@ -175,11 +224,11 @@ const Composer: React.FC = () => {
     }
   };
 
-  const handleCopyUrl = () => {
-    if (composedUrl) {
-      navigator.clipboard.writeText(composedUrl)
+  const handleCopyUrl = (url: string, label: string) => {
+    if (url) {
+      navigator.clipboard.writeText(url)
         .then(() => {
-          setSnackbarMessage('MCP URL copied to clipboard!');
+          setSnackbarMessage(`${label} copied to clipboard!`);
           setSnackbarOpen(true);
         })
         .catch(err => {
@@ -291,9 +340,25 @@ const Composer: React.FC = () => {
                       ) : (
                         <div className="w-8 h-8 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full" />
                       )}
-                      <h3 className="text-base font-semibold text-gray-900 truncate">
-                        {artifact.manifest.name}
-                      </h3>
+                      <div className="flex-1">
+                        <h3 className="text-base font-semibold text-gray-900 truncate">
+                          {artifact.manifest.name}
+                        </h3>
+                        <div className="flex items-center gap-1 mt-1">
+                          <span className={`text-xs px-2 py-0.5 rounded ${
+                            (artifact.manifest.type || artifact.type) === 'tool'
+                              ? 'bg-green-100 text-green-800'
+                              : 'bg-yellow-100 text-yellow-800'
+                          }`}>
+                            {artifact.manifest.type || artifact.type || 'unknown'}
+                          </span>
+                          {(artifact.manifest.type || artifact.type) !== 'tool' && (
+                            <span className="text-xs text-yellow-600">
+                              (not composable)
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </div>
                     <IconButton
                       size="small"
@@ -330,8 +395,14 @@ const Composer: React.FC = () => {
 
           {!composedUrl ? (
             <div className="text-center py-8">
+              <div className="bg-blue-50 rounded-lg p-4 mb-6 border border-blue-200 text-left">
+                <p className="text-sm text-gray-700">
+                  <strong>Note:</strong> Only artifacts with type "tool" can be composed into an MCP server.
+                  Datasets, models, and collections will be automatically skipped.
+                </p>
+              </div>
               <p className="text-gray-600 mb-6">
-                Click the button below to generate a composed MCP server URL for all selected artifacts
+                Click the button below to generate a composed MCP server URL for all selected tool artifacts
               </p>
               <Button
                 variant="contained"
@@ -358,29 +429,62 @@ const Composer: React.FC = () => {
             </div>
           ) : (
             <div>
-              <div className="bg-gray-50 rounded-lg p-4 mb-4 border border-gray-200">
-                <div className="flex items-start gap-3">
-                  <code className="text-sm text-gray-800 break-all flex-1">
-                    {composedUrl}
-                  </code>
-                  <IconButton
-                    onClick={handleCopyUrl}
-                    sx={{
-                      color: '#3b82f6',
-                      '&:hover': {
-                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                      }
-                    }}
-                  >
-                    <ContentCopyIcon />
-                  </IconButton>
+              <div className="space-y-4 mb-4">
+                {/* Service URL */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Service URL
+                  </label>
+                  <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                    <div className="flex items-start gap-3">
+                      <code className="text-sm text-gray-800 break-all flex-1">
+                        {serviceUrl}
+                      </code>
+                      <IconButton
+                        onClick={() => handleCopyUrl(serviceUrl, 'Service URL')}
+                        sx={{
+                          color: '#3b82f6',
+                          '&:hover': {
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                          }
+                        }}
+                      >
+                        <ContentCopyIcon />
+                      </IconButton>
+                    </div>
+                  </div>
+                </div>
+
+                {/* MCP URL */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    MCP URL
+                  </label>
+                  <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                    <div className="flex items-start gap-3">
+                      <code className="text-sm text-gray-800 break-all flex-1">
+                        {composedUrl}
+                      </code>
+                      <IconButton
+                        onClick={() => handleCopyUrl(composedUrl, 'MCP URL')}
+                        sx={{
+                          color: '#3b82f6',
+                          '&:hover': {
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                          }
+                        }}
+                      >
+                        <ContentCopyIcon />
+                      </IconButton>
+                    </div>
+                  </div>
                 </div>
               </div>
 
               <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-                <h3 className="font-semibold text-gray-800 mb-2">How to use this URL:</h3>
+                <h3 className="font-semibold text-gray-800 mb-2">How to use these URLs:</h3>
                 <ol className="list-decimal list-inside text-sm text-gray-700 space-y-1">
-                  <li>Copy the MCP server URL above</li>
+                  <li>Copy either the Service URL or MCP URL above</li>
                   <li>Add it to your MCP client configuration</li>
                   <li>Your client will have access to all selected artifacts</li>
                 </ol>
