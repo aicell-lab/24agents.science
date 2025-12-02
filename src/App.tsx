@@ -10,6 +10,7 @@ import Footer from './components/Footer';
 import Upload from './components/Upload';
 import MyArtifacts from './components/MyArtifacts';
 import Edit from './components/Edit';
+import Composer from './components/Composer';
 import './index.css'
 import './github-markdown.css'
 import { HyphaProvider } from './HyphaContext';
@@ -81,6 +82,7 @@ const AppContent: React.FC = () => {
           <Route path="/agents" element={<ArtifactGrid type="agent" />} />
           <Route path="/datasets" element={<ArtifactGrid type="datasets" />} />
           <Route path="/upload" element={<Upload />} />
+          <Route path="/composer" element={<Composer />} />
           <Route path="/my-artifacts" element={<MyArtifacts />} />
           <Route path="/edit/:artifactId/:version?" element={<Edit />} />
           <Route path="/admin" element={<AdminDashboard />} />

@@ -6,6 +6,8 @@ import DownloadIcon from '@mui/icons-material/Download';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import EditIcon from '@mui/icons-material/Edit';
+import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 
 import { resolveHyphaUrl } from '../utils/urlHelpers';
 import { ArtifactInfo, TestReport } from '../types/artifact';
@@ -26,7 +28,7 @@ export const ArtifactCard: React.FC<ResourceCardProps> = ({ artifact }) => {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [canEdit, setCanEdit] = useState(false);
 
-  const { setSelectedResource, user, isLoggedIn, artifactManager } = useHyphaStore();
+  const { setSelectedResource, user, isLoggedIn, artifactManager, addToCart, removeFromCart, isInCart } = useHyphaStore();
 
   // Check if user has edit permissions
   useEffect(() => {
@@ -116,6 +118,16 @@ export const ArtifactCard: React.FC<ResourceCardProps> = ({ artifact }) => {
     navigate(`/edit/${encodeURIComponent(artifact.id)}`);
   };
 
+  const handleCartToggle = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (isInCart(artifact.id)) {
+      removeFromCart(artifact.id);
+    } else {
+      addToCart(artifact.id);
+    }
+  };
+
   // Get the resolved cover URL for the current index
   const getCurrentCoverUrl = () => {
     if (covers.length === 0) return '';
@@ -145,6 +157,9 @@ export const ArtifactCard: React.FC<ResourceCardProps> = ({ artifact }) => {
             opacity: 1,
           },
           '& .edit-button': {
+            opacity: 1,
+          },
+          '& .cart-button': {
             opacity: 1,
           },
           '& .download-button': {
@@ -203,6 +218,34 @@ export const ArtifactCard: React.FC<ResourceCardProps> = ({ artifact }) => {
           <EditIcon fontSize="small" sx={{ color: 'rgba(34, 197, 94, 1)' }} />
         </IconButton>
       )}
+
+      <IconButton
+        className="cart-button"
+        onClick={handleCartToggle}
+        sx={{
+          position: 'absolute',
+          top: 8,
+          right: 8,
+          zIndex: 1,
+          backgroundColor: isInCart(artifact.id) ? 'rgba(59, 130, 246, 0.9)' : 'rgba(255, 255, 255, 0.9)',
+          backdropFilter: 'blur(8px)',
+          border: '1px solid rgba(255, 255, 255, 0.5)',
+          borderRadius: '12px',
+          opacity: isInCart(artifact.id) ? 1 : 0,
+          transition: 'all 0.3s ease',
+          '&:hover': {
+            backgroundColor: isInCart(artifact.id) ? 'rgba(59, 130, 246, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+            borderColor: 'rgba(59, 130, 246, 0.3)',
+            transform: 'scale(1.05)',
+          }
+        }}
+      >
+        {isInCart(artifact.id) ? (
+          <CheckCircleIcon fontSize="small" sx={{ color: 'white' }} />
+        ) : (
+          <ShoppingCartIcon fontSize="small" sx={{ color: 'rgba(59, 130, 246, 1)' }} />
+        )}
+      </IconButton>
 
       <PreviewDialog 
         open={previewOpen}
