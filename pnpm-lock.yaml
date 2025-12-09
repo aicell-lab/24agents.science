@@ -65,6 +65,9 @@ importers:
       hypha-rpc:
         specifier: ^0.20.58
         version: 0.20.58
+      idb-keyval:
+        specifier: ^6.2.2
+        version: 6.2.2
       js-yaml:
         specifier: ^4.1.0
         version: 4.1.0
@@ -3728,6 +3731,9 @@ packages:
     engines: {node: ^10 || ^12 || >= 14}
     peerDependencies:
       postcss: ^8.1.0
+
+  idb-keyval@6.2.2:
+    resolution: {integrity: sha512-yjD9nARJ/jb1g+CvD0tlhUHOrJ9Sy0P8T9MF3YaLlHnSRpwPfpTX0XIvpmw3gAJUmEu3FiICLBDPXVwyEvrleg==}
 
   idb@7.1.1:
     resolution: {integrity: sha512-gchesWBzyvGHRO9W8tzUWFDycow5gwjvFKfyV9FF32Y7F50yZMp7mP+T2mJIWFx49zicqyC4uefHM17o6xKIVQ==}
@@ -11232,6 +11238,8 @@ snapshots:
   icss-utils@5.1.0(postcss@8.5.2):
     dependencies:
       postcss: 8.5.2
+
+  idb-keyval@6.2.2: {}
 
   idb@7.1.1: {}
 

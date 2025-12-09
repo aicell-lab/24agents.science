@@ -13,13 +13,13 @@ import Edit from './components/Edit';
 import './index.css'
 import './github-markdown.css'
 import { HyphaProvider } from './HyphaContext';
-import { KernelProvider } from './contexts/KernelContext';
 import AdminDashboard from './pages/AdminDashboard';
 import ReviewArtifacts from './components/ReviewArtifacts';
 import ApiDocs from './components/ApiDocs';
 import TermsOfService from './components/TermsOfService';
 import BioEngineHome from './components/BioEngine/BioEngineHome';
 import BioEngineWorker from './components/BioEngine/BioEngineWorker';
+import MyDatasets from './pages/MyDatasets';
 import MountedDatasetDashboard from './pages/MountedDatasetDashboard';
 
 // Add a utility function to check if footer should be hidden
@@ -79,7 +79,7 @@ const AppContent: React.FC = () => {
           />
           <Route path="/tools" element={<ArtifactGrid type="tool" />} />
           <Route path="/agents" element={<ArtifactGrid type="agent" />} />
-          <Route path="/datasets" element={<ArtifactGrid type="datasets" />} />
+          <Route path="/datasets" element={<ArtifactGrid type="data" />} />
           <Route path="/upload" element={<Upload />} />
           <Route path="/my-artifacts" element={<MyArtifacts />} />
           <Route path="/edit/:artifactId/:version?" element={<Edit />} />
@@ -89,7 +89,8 @@ const AppContent: React.FC = () => {
           <Route path="/toc" element={<TermsOfService />} />
           <Route path="/bioengine" element={<BioEngineHome />} />
           <Route path="/bioengine/worker" element={<BioEngineWorker />} />
-          <Route path="/local/mounted/:id" element={<MountedDatasetDashboard />} />
+          <Route path="/my-datasets" element={<MyDatasets />} />
+          <Route path="/dataset/:id" element={<MountedDatasetDashboard />} />
         </Routes>
       </main>
       <Footer />
@@ -101,11 +102,9 @@ const AppContent: React.FC = () => {
 const App: React.FC = () => {
   return (
     <HyphaProvider>
-      <KernelProvider>
-        <HashRouter>
-          <AppContent />
-        </HashRouter>
-      </KernelProvider>
+      <HashRouter>
+        <AppContent />
+      </HashRouter>
     </HyphaProvider>
   );
 };
