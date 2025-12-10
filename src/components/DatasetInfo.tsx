@@ -865,12 +865,6 @@ ${files.slice(0, 10).map(f => `- ${f.name}`).join('\n')}
                 <p className="text-xs text-yellow-700 mt-1">You need to login to Hypha to register an MCP server.</p>
               </div>
             </div>
-            <button
-              onClick={() => navigate('/')}
-              className="mt-3 w-full px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors text-sm font-medium"
-            >
-              Go to Login
-            </button>
           </div>
         )}
       </div>
