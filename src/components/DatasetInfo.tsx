@@ -53,6 +53,8 @@ export default function DatasetInfo({ dataset }: DatasetInfoProps) {
   const [expandedLogs, setExpandedLogs] = useState<Set<number>>(new Set());
   const [shouldAutoRegisterMcp, setShouldAutoRegisterMcp] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
+  const [registeredService, setRegisteredService] = useState<any>(null);
+  const [connectionHealth, setConnectionHealth] = useState<'healthy' | 'checking' | 'reconnecting' | 'disconnected'>('healthy');
 
   // Helper to toggle log expansion
   const toggleLogExpanded = (index: number) => {
@@ -163,6 +165,61 @@ export default function DatasetInfo({ dataset }: DatasetInfoProps) {
       handleRegisterMcpServer();
     }
   }, [isReady, shouldAutoRegisterMcp, isMcpServerActive]);
+
+  // Periodic health check for MCP server connection
+  useEffect(() => {
+    if (!isMcpServerActive || !server || !registeredService) {
+      return;
+    }
+
+    const healthCheckInterval = setInterval(async () => {
+      try {
+        setConnectionHealth('checking');
+        // Try to ping the server
+        await server.ping?.();
+        setConnectionHealth('healthy');
+      } catch (error) {
+        console.warn('Connection health check failed, attempting to reconnect...', error);
+        setConnectionHealth('reconnecting');
+
+        // Try to reconnect and re-register
+        try {
+          const { getToken, connect } = useHyphaStore.getState();
+          const token = getToken();
+
+          if (!token) {
+            console.error('No token available for reconnection');
+            setConnectionHealth('disconnected');
+            setIsMcpServerActive(false);
+            addActivityLog('mcp_deactivation', 'MCP Server disconnected', 'Session expired - please login again');
+            return;
+          }
+
+          const activeServer = await connect({
+            server_url: 'https://hypha.aicell.io',
+            token: token,
+            method_timeout: 300
+          });
+
+          console.log('Reconnected successfully, re-registering MCP server...');
+
+          // Re-register the MCP server
+          await handleRegisterMcpServer();
+          setConnectionHealth('healthy');
+          addActivityLog('mcp_registration', 'MCP Server reconnected successfully', 'Connection restored and service re-registered');
+        } catch (reconnectError) {
+          console.error('Failed to reconnect:', reconnectError);
+          setConnectionHealth('disconnected');
+          setIsMcpServerActive(false);
+          setMcpServerUrl("");
+          setServiceInfoUrl("");
+          addActivityLog('mcp_deactivation', 'MCP Server disconnected', 'Failed to reconnect - please re-enable manually');
+        }
+      }
+    }, 30000); // Check every 30 seconds
+
+    return () => clearInterval(healthCheckInterval);
+  }, [isMcpServerActive, server, registeredService]);
 
   const mountDataToKernel = async () => {
     if (isMountingData) return;
@@ -486,6 +543,8 @@ ${files.slice(0, 10).map(f => `- ${f.name}`).join('\n')}
       setMcpServerUrl(mcpUrl);
       setServiceInfoUrl(serviceUrl);
       setIsMcpServerActive(true);
+      setRegisteredService(svc);
+      setConnectionHealth('healthy');
       addActivityLog('mcp_registration', 'MCP Server registered successfully', `Service ID: ${svc.id}`);
       console.log('MCP server registered:', mcpUrl);
       console.log('Service info URL:', serviceUrl);
@@ -540,8 +599,27 @@ ${files.slice(0, 10).map(f => `- ${f.name}`).join('\n')}
             <p className="text-sm text-gray-600">Enable secure AI agent access to your dataset without data transfer</p>
           </div>
           {isMcpServerActive && (
-            <div className="px-3 py-1 bg-green-500 text-white text-xs font-bold rounded-full">
-              ACTIVE
+            <div className={`px-3 py-1 text-white text-xs font-bold rounded-full flex items-center gap-1 ${
+              connectionHealth === 'healthy' ? 'bg-green-500' :
+              connectionHealth === 'checking' ? 'bg-blue-500' :
+              connectionHealth === 'reconnecting' ? 'bg-yellow-500' :
+              'bg-red-500'
+            }`}>
+              {connectionHealth === 'checking' && (
+                <svg className="w-3 h-3 animate-pulse" fill="currentColor" viewBox="0 0 20 20">
+                  <circle cx="10" cy="10" r="5" />
+                </svg>
+              )}
+              {connectionHealth === 'reconnecting' && (
+                <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+              )}
+              {connectionHealth === 'healthy' ? 'ACTIVE' :
+               connectionHealth === 'checking' ? 'CHECKING' :
+               connectionHealth === 'reconnecting' ? 'RECONNECTING' :
+               'DISCONNECTED'}
             </div>
           )}
         </div>
