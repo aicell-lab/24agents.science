@@ -92,6 +92,8 @@ const AppContent: React.FC = () => {
           <Route path="/toc" element={<TermsOfService />} />
           <Route path="/bioengine" element={<BioEngineHome />} />
           <Route path="/bioengine/worker" element={<BioEngineWorker />} />
+          <Route path="/my-datasets" element={<MyDatasets />} />
+          <Route path="/dataset/:id" element={<MountedDatasetDashboard />} />
         </Routes>
       </main>
       {!hideFooter && <Footer />}

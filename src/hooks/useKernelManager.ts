@@ -4,9 +4,13 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { KernelManager, KernelMode, KernelLanguage, KernelEvents } from 'web-python-kernel';
-import { KernelInfo, KernelExecutionLog, ExecuteCodeCallbacks } from '../types/kernel';
+import { KernelManagerType, KernelInfo, KernelExecutionLog, ExecuteCodeCallbacks } from '../utils/agentLabTypes';
 import { createKernelResetCode } from '../utils/kernelUtils';
-import { showToast } from '../utils/notebookUtils';
+
+// Simple toast replacement for standalone usage
+const showToast = (message: string, type: 'success' | 'error' | 'warning' | 'loading' | 'info' = 'info') => {
+  console.log(`[${type.toUpperCase()}] ${message}`);
+};
 
 interface UseKernelManagerProps {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -18,7 +22,7 @@ interface UseKernelManagerProps {
 
 export const useKernelManager = ({ clearRunningState, onKernelReady, autoStart = false }: UseKernelManagerProps) => {
   const [isReady, setIsReady] = useState(false);
-  const [kernelStatus, setKernelStatus] = useState<'idle' | 'busy' | 'starting' | 'error'>(autoStart ? 'starting' : 'idle');
+  const [kernelStatus, setKernelStatus] = useState<'idle' | 'busy' | 'starting' | 'error'>('starting');
   const [executeCode, setExecuteCode] = useState<((code: string, callbacks?: ExecuteCodeCallbacks, timeout?: number) => Promise<void>) | null>(null);
   const [kernelInfo, setKernelInfo] = useState<KernelInfo>({});
   const [kernelExecutionLog, setKernelExecutionLog] = useState<KernelExecutionLog[]>([]);

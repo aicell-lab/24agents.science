@@ -6,6 +6,7 @@ import ArtifactCard from './ArtifactCard';
 import PartnerScroll from './PartnerScroll';
 import { Grid } from '@mui/material';
 import TagSelection from './TagSelection';
+import MountDatasetDialog from './MountDatasetDialog';
 
 interface ResourceGridProps {
   type?: 'tool' | 'data' | 'agent' ;
@@ -120,6 +121,7 @@ const LoadingOverlay = () => (
 export const ArtifactGrid: React.FC<ResourceGridProps> = ({ type }) => {
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
+  const [showMountDialog, setShowMountDialog] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const { 
@@ -379,6 +381,51 @@ export const ArtifactGrid: React.FC<ResourceGridProps> = ({ type }) => {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
                   </svg>
                 </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Mount Dataset Button - Only show for datasets */}
+        {resourceType === 'dataset' && (
+          <div className="max-w-3xl mx-auto mb-6 sm:mb-8 px-2 sm:px-0">
+            <div className="bg-gradient-to-r from-green-50 to-teal-50 border-2 border-green-200 rounded-2xl p-4 sm:p-6 shadow-sm hover:shadow-md transition-all duration-200">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center sm:justify-between gap-4">
+                <div className="flex items-center">
+                  <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center mr-4 shadow-md">
+                    <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-800 mb-1">
+                      Share Your Dataset with AI Agents
+                    </h3>
+                    <p className="text-sm text-gray-600">
+                      Mount a local folder and let AI agents explore and analyze your data through MCP. Keep your data local while enabling AI access.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                  <button
+                    onClick={() => navigate('/my-datasets')}
+                    className="w-full sm:w-auto px-4 py-3 bg-white border-2 border-green-300 text-green-700 font-semibold rounded-xl hover:bg-green-50 shadow-sm hover:shadow-md transition-all duration-200 flex items-center justify-center"
+                  >
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                    </svg>
+                    My Datasets
+                  </button>
+                  <button
+                    onClick={() => setShowMountDialog(true)}
+                    className="w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-green-600 to-teal-600 text-white font-semibold rounded-xl hover:from-green-700 hover:to-teal-700 shadow-md hover:shadow-lg transition-all duration-200 transform hover:scale-105 flex items-center justify-center"
+                  >
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    Mount Dataset
+                  </button>
+                </div>
               </div>
             </div>
           </div>
