@@ -69,6 +69,16 @@ export interface HyphaState {
   removeFromCart: (artifactId: string) => void;
   clearCart: () => void;
   isInCart: (artifactId: string) => boolean;
+  getUserWorkspace: () => Promise<string>;
+  createArtifact: (manifest: any, collection: string, stage?: boolean, alias?: string, config?: any) => Promise<any>;
+  getService: (serviceId: string, options?: any) => Promise<any>;
+  listMyRunningDatasetServices: () => Promise<any[]>;
+  getToken: () => string | null;
+  getArtifactManager: () => Promise<any>;
+  readArtifact: (artifactId: string) => Promise<any>;
+  listArtifacts: (collection: string, filters?: any) => Promise<any[]>;
+  putArtifactFile: (artifactId: string, filename: string, content: string) => Promise<void>;
+  getEvents: (eventType: string, limit: number, offset: number) => Promise<any[]>;
 }
 
 export const useHyphaStore = create<HyphaState>((set, get) => ({
@@ -326,5 +336,133 @@ export const useHyphaStore = create<HyphaState>((set, get) => ({
   },
   isInCart: (artifactId: string) => {
     return get().selectedArtifacts.includes(artifactId);
+  },
+  getUserWorkspace: async () => {
+    const { server, user } = get();
+    if (!user || !server) {
+      throw new Error("Not connected to server or not logged in");
+    }
+    // Return user's workspace ID
+    return user.id || user.sub || user.email;
+  },
+  createArtifact: async (manifest: any, collection: string, stage: boolean = false, alias?: string, config?: any) => {
+    const { server } = get();
+    if (!server) {
+      throw new Error("Not connected to server");
+    }
+    const artifactManager = await server.getService("public/artifact-manager");
+    return await artifactManager.create({
+      manifest,
+      collection,
+      stage,
+      alias,
+      config,
+      _rkwargs: true
+    });
+  },
+  getService: async (serviceId: string, options?: any) => {
+    const { server } = get();
+    if (!server) {
+      throw new Error("Not connected to server");
+    }
+    return await server.getService(serviceId, options);
+  },
+  listMyRunningDatasetServices: async () => {
+    const { server, user } = get();
+    if (!server || !user) {
+      throw new Error("Not connected to server or not logged in");
+    }
+
+    try {
+      const services = await server.listServices({ visibility: "public" });
+
+      // Filter for dataset services created by this user
+      const datasetServices = services.filter((s: any) => {
+        return s.service_schema?.is_dataset_service &&
+               s.config?.created_by === user.id;
+      });
+
+      return datasetServices;
+    } catch (error) {
+      console.error("Failed to list running dataset services:", error);
+      return [];
+    }
+  },
+  getToken: () => {
+    const { client, server } = get();
+    if (server?.config?.token) {
+      return server.config.token;
+    }
+    if (client?.config?.token) {
+      return client.config.token;
+    }
+    // Fall back to localStorage if not found in client/server
+    const token = localStorage.getItem("token");
+    if (token) {
+      const tokenExpiry = localStorage.getItem("tokenExpiry");
+      if (tokenExpiry && new Date(tokenExpiry) > new Date()) {
+        return token;
+      }
+    }
+    return null;
+  },
+  getArtifactManager: async () => {
+    const { server } = get();
+    if (!server) {
+      throw new Error("Not connected to server");
+    }
+    return await server.getService("public/artifact-manager");
+  },
+  readArtifact: async (artifactId: string) => {
+    const { server } = get();
+    if (!server) {
+      throw new Error("Not connected to server");
+    }
+    const artifactManager = await server.getService("public/artifact-manager");
+    return await artifactManager.read({ artifact_id: artifactId, _rkwargs: true });
+  },
+  listArtifacts: async (collection: string, filters?: any) => {
+    const { server } = get();
+    if (!server) {
+      throw new Error("Not connected to server");
+    }
+    const artifactManager = await server.getService("public/artifact-manager");
+    return await artifactManager.list({
+      collection,
+      filters,
+      _rkwargs: true
+    });
+  },
+  putArtifactFile: async (artifactId: string, filename: string, content: string) => {
+    const { server } = get();
+    if (!server) {
+      throw new Error("Not connected to server");
+    }
+    const artifactManager = await server.getService("public/artifact-manager");
+    await artifactManager.put_file({
+      artifact_id: artifactId,
+      file_path: filename,
+      content: content,
+      _rkwargs: true
+    });
+  },
+  getEvents: async (eventType: string, limit: number, offset: number) => {
+    const { server } = get();
+    if (!server) {
+      throw new Error("Not connected to server");
+    }
+
+    try {
+      const events = await server.get_events({
+        type: eventType,
+        limit,
+        offset,
+        _rkwargs: true
+      });
+      return events || [];
+    } catch (error) {
+      console.error("Failed to get events:", error);
+      return [];
+    }
   },
 })); 

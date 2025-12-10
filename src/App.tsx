@@ -20,10 +20,12 @@ import ApiDocs from './components/ApiDocs';
 import TermsOfService from './components/TermsOfService';
 import BioEngineHome from './components/BioEngine/BioEngineHome';
 import BioEngineWorker from './components/BioEngine/BioEngineWorker';
+import DatasetDashboard from './pages/DatasetDashboard';
+import { KernelProvider } from './contexts/KernelContext';
 
 // Add a utility function to check if footer should be hidden
 const shouldHideFooter = (pathname: string): boolean => {
-  return pathname.startsWith('/edit/') || pathname === '/upload';
+  return pathname.startsWith('/edit/') || pathname === '/upload' || pathname.startsWith('/datasets/');
 };
 
 // Create a wrapper component that uses Router hooks
@@ -79,6 +81,7 @@ const AppContent: React.FC = () => {
           <Route path="/tools" element={<ArtifactGrid type="tool" />} />
           <Route path="/agents" element={<ArtifactGrid type="agent" />} />
           <Route path="/datasets" element={<ArtifactGrid type="datasets" />} />
+          <Route path="/datasets/:datasetId" element={<DatasetDashboard />} />
           <Route path="/upload" element={<Upload />} />
           <Route path="/composer" element={<Composer />} />
           <Route path="/my-artifacts" element={<MyArtifacts />} />
@@ -91,7 +94,7 @@ const AppContent: React.FC = () => {
           <Route path="/bioengine/worker" element={<BioEngineWorker />} />
         </Routes>
       </main>
-      <Footer />
+      {!hideFooter && <Footer />}
     </div>
   );
 };
@@ -100,9 +103,11 @@ const AppContent: React.FC = () => {
 const App: React.FC = () => {
   return (
     <HyphaProvider>
-      <HashRouter>
-        <AppContent />
-      </HashRouter>
+      <KernelProvider>
+        <HashRouter>
+          <AppContent />
+        </HashRouter>
+      </KernelProvider>
     </HyphaProvider>
   );
 };
