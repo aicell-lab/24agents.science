@@ -22,7 +22,7 @@ interface FileInfo {
 
 interface ActivityLog {
   timestamp: number;
-  type: 'mount' | 'doc_generation' | 'mcp_registration' | 'mcp_deactivation' | 'script_execution';
+  type: 'mount' | 'doc_generation' | 'mcp_registration' | 'mcp_deactivation' | 'script_execution' | 'doc_refinement_error';
   message: string;
   details?: string;
 }
@@ -55,6 +55,7 @@ export default function DatasetInfo({ dataset }: DatasetInfoProps) {
   const [isCopied, setIsCopied] = useState(false);
   const [registeredService, setRegisteredService] = useState<any>(null);
   const [connectionHealth, setConnectionHealth] = useState<'healthy' | 'checking' | 'reconnecting' | 'disconnected'>('healthy');
+  const [refineError, setRefineError] = useState<string>("");
 
   // Helper to toggle log expansion
   const toggleLogExpanded = (index: number) => {
@@ -385,15 +386,26 @@ ${files.slice(0, 10).map(f => `- ${f.name}`).join('\n')}
     // Save current doc for undo
     setPreviousDoc(editedDoc);
 
+    // Clear any previous errors
+    setRefineError("");
+
     // Set generating state (stay in edit mode)
     setIsGenerating(true);
 
-    // Generate refined documentation
-    await generateDocumentation(fileInfos, dataset.name, dataset.description, refineFeedback);
-    setRefineFeedback("");
+    try {
+      // Generate refined documentation
+      await generateDocumentation(fileInfos, dataset.name, dataset.description, refineFeedback);
+      setRefineFeedback("");
 
-    // Update the edited doc with the new generated doc
-    setEditedDoc(generatedDoc);
+      // Update the edited doc with the new generated doc
+      setEditedDoc(generatedDoc);
+    } catch (error) {
+      console.error('Failed to refine documentation:', error);
+      setRefineError(error instanceof Error ? error.message : 'Failed to refine documentation. Please try again.');
+      addActivityLog('doc_refinement_error', 'AI refinement failed', error instanceof Error ? error.message : String(error));
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const handleUndoRefine = () => {
@@ -945,20 +957,59 @@ ${files.slice(0, 10).map(f => `- ${f.name}`).join('\n')}
             <>
               {isEditMode ? (
                 /* Edit Mode */
-                <div className="space-y-4 relative">
-                  <textarea
-                    value={editedDoc}
-                    onChange={(e) => setEditedDoc(e.target.value)}
-                    disabled={isGenerating}
-                    className="w-full h-96 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm disabled:bg-gray-50 disabled:cursor-not-allowed"
-                    placeholder="Edit documentation in Markdown format..."
-                  />
+                <div className="space-y-4">
+                  {/* Textarea with overlay */}
+                  <div className="relative">
+                    <textarea
+                      value={editedDoc}
+                      onChange={(e) => setEditedDoc(e.target.value)}
+                      disabled={isGenerating}
+                      className="w-full h-96 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm disabled:bg-gray-50 disabled:cursor-not-allowed"
+                      placeholder="Edit documentation in Markdown format..."
+                    />
+
+                    {/* Generating Overlay - Only covers textarea */}
+                    {isGenerating && (
+                      <div className="absolute inset-0 bg-white/90 backdrop-blur-sm flex items-center justify-center rounded-lg z-10">
+                        <div className="text-center">
+                          <svg className="animate-spin h-8 w-8 mx-auto mb-4 text-blue-600" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          <p className="text-gray-600 font-medium">Refining documentation...</p>
+                          <p className="text-xs text-gray-500 mt-1">Please wait while AI generates improvements</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
 
                   {/* AI Refine in Edit Mode */}
                   <div className="border-t border-gray-200 pt-4">
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       AI-Assisted Refinement
                     </label>
+
+                    {/* Error Display */}
+                    {refineError && (
+                      <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
+                        <svg className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-red-800">Refinement Failed</p>
+                          <p className="text-xs text-red-700 mt-1">{refineError}</p>
+                        </div>
+                        <button
+                          onClick={() => setRefineError("")}
+                          className="text-red-600 hover:text-red-800"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                    )}
+
                     <div className="flex gap-2">
                       <input
                         type="text"
@@ -999,20 +1050,6 @@ ${files.slice(0, 10).map(f => `- ${f.name}`).join('\n')}
                       )}
                     </div>
                   </div>
-
-                  {/* Generating Overlay */}
-                  {isGenerating && (
-                    <div className="absolute inset-0 bg-white/90 backdrop-blur-sm flex items-center justify-center rounded-lg z-10">
-                      <div className="text-center">
-                        <svg className="animate-spin h-8 w-8 mx-auto mb-4 text-blue-600" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        <p className="text-gray-600 font-medium">Refining documentation...</p>
-                        <p className="text-xs text-gray-500 mt-1">Please wait while AI generates improvements</p>
-                      </div>
-                    </div>
-                  )}
                 </div>
               ) : (
                 /* View Mode - Default */
