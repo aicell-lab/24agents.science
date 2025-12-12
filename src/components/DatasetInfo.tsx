@@ -103,14 +103,12 @@ export default function DatasetInfo({ dataset }: DatasetInfoProps) {
       // First, try to load saved documentation
       const metadata = await get(`dataset_metadata_${dataset.id}`);
       if (metadata && metadata.description) {
-        console.log('Loading saved documentation from metadata');
         setGeneratedDoc(metadata.description);
         return; // Don't generate if we have saved documentation
       }
 
       // Only generate if no saved documentation exists
       if (!isGenerating) {
-        console.log('No saved documentation found, generating new one');
         scanFolderAndGenerateDoc();
       }
     };
@@ -220,6 +218,22 @@ for item in os.listdir("/data")[:10]:
         return;
       }
 
+      // Check if we have permission to access the folder
+      // After page reload, File System Access API requires re-permission
+      try {
+        const permissionStatus = await handle.queryPermission({ mode: 'read' });
+        if (permissionStatus !== 'granted') {
+          const requestStatus = await handle.requestPermission({ mode: 'read' });
+          if (requestStatus !== 'granted') {
+            console.error('Permission denied to access folder');
+            return;
+          }
+        }
+      } catch (permErr) {
+        console.error('Permission check failed:', permErr);
+        return;
+      }
+
       setIsGenerating(true);
       const files: FileInfo[] = [];
       await scanDirectory(handle, '', files);
@@ -284,17 +298,47 @@ for item in os.listdir("/data")[:10]:
 
         const docText = result.description || generateFallbackDoc(files, datasetName, userDescription);
         setGeneratedDoc(docText);
+        // Save generated documentation to IndexedDB
+        try {
+          const metadata = await get(`dataset_metadata_${dataset.id}`);
+          const updatedMetadata = metadata
+            ? { ...metadata, description: docText }
+            : { ...dataset, description: docText };
+          await set(`dataset_metadata_${dataset.id}`, updatedMetadata);
+        } catch (saveErr) {
+          console.error('Failed to save documentation:', saveErr);
+        }
         addActivityLog('doc_generation', 'Documentation generated using AI agent', `Generated ${docText.length} characters of documentation`);
       } catch (agentError) {
         console.warn("Agent service not available, using fallback");
         const docText = generateFallbackDoc(files, datasetName, userDescription);
         setGeneratedDoc(docText);
+        // Save fallback documentation to IndexedDB
+        try {
+          const metadata = await get(`dataset_metadata_${dataset.id}`);
+          const updatedMetadata = metadata
+            ? { ...metadata, description: docText }
+            : { ...dataset, description: docText };
+          await set(`dataset_metadata_${dataset.id}`, updatedMetadata);
+        } catch (saveErr) {
+          console.error('Failed to save documentation:', saveErr);
+        }
         addActivityLog('doc_generation', 'Documentation generated (fallback mode)', `Generated ${docText.length} characters of documentation`);
       }
     } catch (error) {
       console.error('Failed to generate documentation:', error);
       const docText = generateFallbackDoc(files, datasetName, userDescription);
       setGeneratedDoc(docText);
+      // Save fallback documentation to IndexedDB
+      try {
+        const metadata = await get(`dataset_metadata_${dataset.id}`);
+        const updatedMetadata = metadata
+          ? { ...metadata, description: docText }
+          : { ...dataset, description: docText };
+        await set(`dataset_metadata_${dataset.id}`, updatedMetadata);
+      } catch (saveErr) {
+        console.error('Failed to save documentation:', saveErr);
+      }
       addActivityLog('doc_generation', 'Documentation generated (fallback mode)', `Generated ${docText.length} characters of documentation`);
     } finally {
       setIsGenerating(false);
