@@ -33,7 +33,7 @@ interface DatasetInfoProps {
 
 export default function DatasetInfo({ dataset }: DatasetInfoProps) {
   const navigate = useNavigate();
-  const { isReady, mountFolder, executeCode, kernelStatus, startKernel, restartKernel } = useKernel();
+  const { isReady, mountFolder, executeCode, kernelStatus, startKernel, restartKernel, activeDatasetId, setActiveDatasetId } = useKernel();
   const { isLoggedIn, server } = useHyphaStore();
 
   const [generatedDoc, setGeneratedDoc] = useState("");
@@ -97,23 +97,34 @@ export default function DatasetInfo({ dataset }: DatasetInfoProps) {
     }
   };
 
-  // Load saved documentation OR generate new one when dataset changes
+  // Load saved documentation and MCP server state when dataset changes
   useEffect(() => {
-    const loadOrGenerateDoc = async () => {
-      // First, try to load saved documentation
+    const loadSavedState = async () => {
       const metadata = await get(`dataset_metadata_${dataset.id}`);
+
+      // Load saved documentation
       if (metadata && metadata.description) {
         setGeneratedDoc(metadata.description);
-        return; // Don't generate if we have saved documentation
+      } else if (!isGenerating) {
+        // Only generate if no saved documentation exists
+        scanFolderAndGenerateDoc();
       }
 
-      // Only generate if no saved documentation exists
-      if (!isGenerating) {
-        scanFolderAndGenerateDoc();
+      // Load saved MCP server state
+      if (metadata && metadata.mcpServerUrl) {
+        setMcpServerUrl(metadata.mcpServerUrl);
+        setServiceInfoUrl(metadata.serviceInfoUrl || '');
+        setIsMcpServerActive(true);
+      } else {
+        // Reset MCP state when switching to a dataset without saved MCP
+        setMcpServerUrl('');
+        setServiceInfoUrl('');
+        setIsMcpServerActive(false);
+        setRegisteredService(null);
       }
     };
 
-    loadOrGenerateDoc();
+    loadSavedState();
   }, [dataset.id]);
 
   // Load activity logs from metadata when dataset changes
@@ -137,23 +148,44 @@ export default function DatasetInfo({ dataset }: DatasetInfoProps) {
     loadActivityLogs();
   }, [dataset.id]);
 
+  // Track active dataset - kernel manager handles switching kernel instances
+  useEffect(() => {
+    setActiveDatasetId(dataset.id);
+  }, [dataset.id, setActiveDatasetId]);
+
   // Mount folder to kernel when kernel is ready
   useEffect(() => {
-    if (isReady && !isMountingData) {
+    if (isReady && !isMountingData && activeDatasetId === dataset.id) {
       mountDataToKernel();
     }
-  }, [isReady, dataset.id]);
+  }, [isReady, dataset.id, activeDatasetId]);
 
   // Deactivate MCP server when kernel becomes not ready (e.g., after restart)
   useEffect(() => {
-    if (!isReady && isMcpServerActive) {
-      console.log('Kernel is not ready, deactivating MCP server');
-      setIsMcpServerActive(false);
-      setMcpServerUrl("");
-      setServiceInfoUrl("");
-      addActivityLog('mcp_deactivation', 'MCP Server deactivated', 'Kernel was restarted or stopped');
-    }
-  }, [isReady, isMcpServerActive]);
+    const deactivateMcpServer = async () => {
+      if (!isReady && isMcpServerActive) {
+        setIsMcpServerActive(false);
+        setMcpServerUrl("");
+        setServiceInfoUrl("");
+        setRegisteredService(null);
+
+        // Clear saved MCP info from IndexedDB
+        try {
+          const metadata = await get(`dataset_metadata_${dataset.id}`);
+          if (metadata) {
+            const { mcpServerUrl: _, serviceInfoUrl: __, mcpServiceId: ___, ...rest } = metadata;
+            await set(`dataset_metadata_${dataset.id}`, rest);
+          }
+        } catch (err) {
+          console.error('Failed to clear MCP server info:', err);
+        }
+
+        addActivityLog('mcp_deactivation', 'MCP Server deactivated', 'Kernel was restarted or stopped');
+      }
+    };
+
+    deactivateMcpServer();
+  }, [isReady, isMcpServerActive, dataset.id]);
 
   // Auto-register MCP server when kernel becomes ready (if flag is set)
   useEffect(() => {
@@ -532,9 +564,23 @@ ${files.slice(0, 10).map(f => `- ${f.name}`).join('\n')}
       setServiceInfoUrl(serviceUrl);
       setIsMcpServerActive(true);
       setRegisteredService(svc);
+
+      // Save MCP server info to IndexedDB for persistence
+      try {
+        const metadata = await get(`dataset_metadata_${dataset.id}`);
+        if (metadata) {
+          await set(`dataset_metadata_${dataset.id}`, {
+            ...metadata,
+            mcpServerUrl: mcpUrl,
+            serviceInfoUrl: serviceUrl,
+            mcpServiceId: svc.id
+          });
+        }
+      } catch (saveErr) {
+        console.error('Failed to save MCP server info:', saveErr);
+      }
+
       addActivityLog('mcp_registration', 'MCP Server registered successfully', `Service ID: ${svc.id}`);
-      console.log('MCP server registered:', mcpUrl);
-      console.log('Service info URL:', serviceUrl);
     } catch (err) {
       console.error('Failed to register MCP server:', err);
 

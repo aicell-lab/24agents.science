@@ -16,13 +16,22 @@ interface UseKernelManagerProps {
   autoStart?: boolean;
 }
 
+// Interface to track per-dataset kernel state
+interface DatasetKernelState {
+  kernelId: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  executeCode: (code: string, callbacks?: ExecuteCodeCallbacks, timeout?: number) => Promise<void>;
+  isReady: boolean;
+  status: 'idle' | 'busy' | 'starting' | 'error';
+}
+
 export const useKernelManager = ({ clearRunningState, onKernelReady, autoStart = false }: UseKernelManagerProps) => {
   const [isReady, setIsReady] = useState(false);
   const [kernelStatus, setKernelStatus] = useState<'idle' | 'busy' | 'starting' | 'error'>(autoStart ? 'starting' : 'idle');
   const [executeCode, setExecuteCode] = useState<((code: string, callbacks?: ExecuteCodeCallbacks, timeout?: number) => Promise<void>) | null>(null);
   const [kernelInfo, setKernelInfo] = useState<KernelInfo>({});
   const [kernelExecutionLog, setKernelExecutionLog] = useState<KernelExecutionLog[]>([]);
-  const [activeDatasetId, setActiveDatasetId] = useState<string | null>(null);
+  const [activeDatasetId, setActiveDatasetIdState] = useState<string | null>(null);
 
   // Add ref to store executeCode function to avoid circular dependencies
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -35,6 +44,8 @@ export const useKernelManager = ({ clearRunningState, onKernelReady, autoStart =
   const isInitializingRef = useRef(false);
   // Add ref to store onKernelReady callback to prevent dependency issues
   const onKernelReadyRef = useRef(onKernelReady);
+  // Map to track kernel instances per dataset
+  const datasetKernelsRef = useRef<Map<string, DatasetKernelState>>(new Map());
 
   // Buffers for stdout and stderr to handle chunked output
   const stdoutBufferRef = useRef<string>('');
@@ -635,6 +646,44 @@ export const useKernelManager = ({ clearRunningState, onKernelReady, autoStart =
 
     throw new Error('Kernel not initialized after multiple retries');
   }, []);
+
+  // Function to switch active dataset - stores/restores kernel state per dataset
+  const setActiveDatasetId = useCallback((datasetId: string | null) => {
+    if (datasetId === activeDatasetId) return;
+
+    // Save current kernel state for the old dataset
+    if (activeDatasetId && currentKernelIdRef.current && executeCodeRef.current) {
+      datasetKernelsRef.current.set(activeDatasetId, {
+        kernelId: currentKernelIdRef.current,
+        executeCode: executeCodeRef.current,
+        isReady,
+        status: kernelStatus
+      });
+    }
+
+    // Check if we have a saved kernel for the new dataset
+    const savedKernel = datasetId ? datasetKernelsRef.current.get(datasetId) : null;
+
+    if (savedKernel) {
+      // Restore the saved kernel state
+      currentKernelIdRef.current = savedKernel.kernelId;
+      executeCodeRef.current = savedKernel.executeCode;
+      setExecuteCode(() => savedKernel.executeCode);
+      setIsReady(savedKernel.isReady);
+      setKernelStatus(savedKernel.status);
+      setKernelInfo({ kernelId: savedKernel.kernelId, id: savedKernel.kernelId });
+    } else {
+      // No saved kernel for this dataset - reset to initial state
+      currentKernelIdRef.current = null;
+      executeCodeRef.current = null;
+      setExecuteCode(null);
+      setIsReady(false);
+      setKernelStatus('idle');
+      setKernelInfo({});
+    }
+
+    setActiveDatasetIdState(datasetId);
+  }, [activeDatasetId, isReady, kernelStatus]);
 
   return {
     isReady,
