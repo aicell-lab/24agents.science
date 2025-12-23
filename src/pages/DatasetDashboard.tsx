@@ -120,7 +120,7 @@ export default function DatasetDashboard() {
   };
 
   return (
-    <div className="flex h-screen bg-gradient-to-br from-gray-50 to-blue-50">
+    <div className="flex h-[calc(100vh-4rem)] bg-gradient-to-br from-gray-50 to-blue-50">
       {/* Sidebar */}
       <div className="w-80 bg-white border-r border-gray-200 flex flex-col shadow-lg">
         {/* Header */}

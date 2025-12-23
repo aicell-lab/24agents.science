@@ -143,7 +143,8 @@ export const ArtifactGrid: React.FC<ResourceGridProps> = ({ type }) => {
       'models': 'model',
       'datasets': 'dataset',
       'applications': 'application',
-      'notebooks': 'notebook'
+      'notebooks': 'notebook',
+      'agents': 'agent'
     };
     return typeMap[path] || null;
   }, [location.pathname]);
@@ -352,6 +353,40 @@ export const ArtifactGrid: React.FC<ResourceGridProps> = ({ type }) => {
           </div>
         )}
 
+        {/* Create Agent Button - Only show for agents */}
+        {resourceType === 'agent' && (
+          <div className="max-w-3xl mx-auto mb-6 sm:mb-8 px-2 sm:px-0">
+            <div className="bg-gradient-to-r from-indigo-50 to-cyan-50 border-2 border-indigo-200 rounded-2xl p-4 sm:p-6 shadow-sm hover:shadow-md transition-all duration-200">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center sm:justify-between gap-4">
+                <div className="flex items-center">
+                  <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center mr-4 shadow-md">
+                    <svg className="w-8 h-8 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-800 mb-1">
+                      Create Your Own AI Agent
+                    </h3>
+                    <p className="text-sm text-gray-600">
+                      Build and deploy custom AI agents for scientific research. Configure system prompts, tools, and execution parameters.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => navigate('/agent-manager')}
+                  className="w-full sm:w-auto sm:ml-2.5 px-6 py-3 bg-gradient-to-r from-indigo-600 to-cyan-600 text-white font-semibold rounded-xl hover:from-indigo-700 hover:to-cyan-700 shadow-md hover:shadow-lg transition-all duration-200 transform hover:scale-105 flex items-center justify-center"
+                >
+                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  <span>Create Agent</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* BioEngine Button - Only show for applications */}
         {resourceType === 'application' && (
           <div className="max-w-3xl mx-auto mb-6 sm:mb-8 px-2 sm:px-0">
@@ -383,6 +418,7 @@ export const ArtifactGrid: React.FC<ResourceGridProps> = ({ type }) => {
             </div>
           </div>
         )}
+
 
         <Grid container spacing={2} sx={{ padding: { xs: 0.5, sm: 1, md: 2 } }}>
           {resources.map((artifact) => (

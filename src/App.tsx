@@ -21,11 +21,12 @@ import TermsOfService from './components/TermsOfService';
 import BioEngineHome from './components/BioEngine/BioEngineHome';
 import BioEngineWorker from './components/BioEngine/BioEngineWorker';
 import DatasetDashboard from './pages/DatasetDashboard';
+import AgentManager from './pages/AgentManager';
 import { KernelProvider } from './contexts/KernelContext';
 
 // Add a utility function to check if footer should be hidden
 const shouldHideFooter = (pathname: string): boolean => {
-  return pathname.startsWith('/edit/') || pathname === '/upload' || pathname.startsWith('/datasets/');
+  return pathname.startsWith('/edit/') || pathname === '/upload' || pathname.startsWith('/datasets/') || pathname === '/agent-manager';
 };
 
 // Create a wrapper component that uses Router hooks
@@ -92,6 +93,7 @@ const AppContent: React.FC = () => {
           <Route path="/toc" element={<TermsOfService />} />
           <Route path="/bioengine" element={<BioEngineHome />} />
           <Route path="/bioengine/worker" element={<BioEngineWorker />} />
+          <Route path="/agent-manager" element={<AgentManager />} />
         </Routes>
       </main>
       {!hideFooter && <Footer />}
