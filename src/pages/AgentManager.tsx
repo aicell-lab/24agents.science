@@ -11,6 +11,15 @@ interface AgentInfo {
   updated_at?: string;
 }
 
+interface SessionInfo {
+  session_id: string;
+  agent_id: string;
+  name: string;
+  description?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
 interface AgentOptions {
   system_prompt?: string;
   model?: string;
@@ -113,6 +122,90 @@ function LogEntryItem({ log, isExpanded, onToggle }: { log: LogEntry; isExpanded
     }
   };
 
+  // Format user-friendly content based on log type
+  const getFormattedContent = () => {
+    const details = log.details;
+
+    switch (log.type) {
+      case 'user':
+        return details?.content || log.content;
+
+      case 'assistant':
+        return details?.content || log.content;
+
+      case 'tool_use':
+        const toolName = details?.name || 'Unknown';
+        const toolInput = details?.input;
+        let inputSummary = '';
+        if (toolInput) {
+          if (typeof toolInput === 'string') {
+            inputSummary = toolInput.length > 100 ? toolInput.substring(0, 100) + '...' : toolInput;
+          } else if (typeof toolInput === 'object') {
+            const keys = Object.keys(toolInput);
+            inputSummary = keys.length > 0 ? `{${keys.slice(0, 3).join(', ')}${keys.length > 3 ? '...' : ''}}` : '{}';
+          }
+        }
+        return (
+          <div>
+            <span className="font-semibold text-purple-300">{toolName}</span>
+            {inputSummary && <div className="text-xs text-gray-400 mt-1">Input: {inputSummary}</div>}
+          </div>
+        );
+
+      case 'tool_result':
+        const resultContent = details?.content;
+        let resultPreview = '';
+        if (resultContent) {
+          if (typeof resultContent === 'string') {
+            resultPreview = resultContent.length > 200 ? resultContent.substring(0, 200) + '...' : resultContent;
+          } else {
+            resultPreview = JSON.stringify(resultContent).substring(0, 200) + '...';
+          }
+        }
+        const isError = details?.is_error;
+        return (
+          <div>
+            {isError && <span className="text-red-400 font-semibold">Error: </span>}
+            <span className={isError ? 'text-red-300' : 'text-amber-200'}>{resultPreview || 'Tool completed'}</span>
+          </div>
+        );
+
+      case 'result':
+        const summary = details?.summary || log.content;
+        const turnsUsed = details?.turns_used;
+        const status = details?.status;
+        return (
+          <div>
+            <div className="text-teal-200">{summary}</div>
+            <div className="text-xs text-gray-400 mt-1">
+              {status && <span className="capitalize">{status}</span>}
+              {turnsUsed && <span> • {turnsUsed} turns</span>}
+            </div>
+          </div>
+        );
+
+      case 'error':
+        const errorMsg = details?.error || log.content;
+        return <span className="text-red-300 font-medium">{errorMsg}</span>;
+
+      case 'system':
+        const subtype = details?.subtype || '';
+        const data = details?.data;
+        return (
+          <div>
+            <span className="text-gray-300">{subtype || 'System message'}</span>
+            {data && <div className="text-xs text-gray-500 mt-1">{JSON.stringify(data).substring(0, 100)}</div>}
+          </div>
+        );
+
+      case 'done':
+        return <span className="text-green-300 font-medium">Task completed successfully</span>;
+
+      default:
+        return log.content || JSON.stringify(details).substring(0, 200);
+    }
+  };
+
   return (
     <div className={`rounded-lg border ${style.border} ${style.bg} overflow-hidden`}>
       <div
@@ -145,7 +238,7 @@ function LogEntryItem({ log, isExpanded, onToggle }: { log: LogEntry; isExpanded
             )}
           </div>
           <div className="text-sm text-gray-200 whitespace-pre-wrap break-words">
-            {log.content}
+            {getFormattedContent()}
           </div>
         </div>
       </div>
@@ -154,6 +247,7 @@ function LogEntryItem({ log, isExpanded, onToggle }: { log: LogEntry; isExpanded
       {hasDetails && isExpanded && (
         <div className="px-3 pb-3 pt-0 ml-7">
           <div className="p-2 bg-black/20 rounded text-xs font-mono text-gray-400 overflow-x-auto">
+            <div className="text-gray-300 font-semibold mb-2">Raw Details:</div>
             <pre className="whitespace-pre-wrap break-all">
               {JSON.stringify(log.details, null, 2)}
             </pre>
@@ -387,7 +481,15 @@ function AgentInfoPanel({
   onExecuteTask,
   taskInput,
   setTaskInput,
-  onClearLogs
+  onClearLogs,
+  sessions,
+  selectedSession,
+  onSessionSelect,
+  onCreateSession,
+  onDeleteSession,
+  isStatefulMode,
+  onToggleStatefulMode,
+  isLoadingHistory
 }: {
   agent: AgentInfo;
   onEdit: () => void;
@@ -398,6 +500,14 @@ function AgentInfoPanel({
   taskInput: string;
   setTaskInput: (val: string) => void;
   onClearLogs: () => void;
+  sessions: SessionInfo[];
+  selectedSession: SessionInfo | null;
+  onSessionSelect: (session: SessionInfo | null) => void;
+  onCreateSession: () => void;
+  onDeleteSession: (sessionId: string) => void;
+  isStatefulMode: boolean;
+  onToggleStatefulMode: () => void;
+  isLoadingHistory: boolean;
 }) {
   const logContainerRef = useRef<HTMLDivElement>(null);
   const [expandedLogs, setExpandedLogs] = useState<Set<string>>(new Set());
@@ -421,79 +531,122 @@ function AgentInfoPanel({
     });
   };
 
-  const formatDate = (dateStr?: string) => {
-    if (!dateStr) return "Unknown";
-    return new Date(dateStr).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
   return (
     <div className="flex flex-col h-full">
-      {/* Agent Header */}
-      <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-white to-indigo-50">
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 bg-gradient-to-br from-indigo-500 to-cyan-600 rounded-xl flex items-center justify-center shadow-lg">
-              <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      {/* Compact Agent Header - Horizontal Layout */}
+      <div className="px-4 py-3 border-b border-gray-200 bg-gradient-to-r from-white to-indigo-50">
+        <div className="flex items-center justify-between gap-4">
+          {/* Left: Agent Info */}
+          <div className="flex items-center gap-3 min-w-0 flex-1">
+            <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-cyan-600 rounded-lg flex items-center justify-center shadow-md flex-shrink-0">
+              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
               </svg>
             </div>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">{agent.name}</h1>
-              <p className="text-gray-600 mt-1">{agent.description || "No description"}</p>
-              <p className="text-xs text-gray-400 mt-2">Created: {formatDate(agent.created_at)}</p>
+            <div className="min-w-0 flex-1">
+              <h1 className="text-lg font-bold text-gray-900 truncate">{agent.name}</h1>
+              <p className="text-xs text-gray-500 truncate">{agent.description || "No description"}</p>
             </div>
           </div>
-          <div className="flex gap-2">
+
+          {/* Center-Left: Edit/Delete Agent Buttons */}
+          <div className="flex gap-1 border-r border-gray-300 pr-2">
             <button
               onClick={onEdit}
-              className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              className="p-1.5 text-gray-600 hover:bg-gray-100 rounded transition-colors"
               title="Edit Agent"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
               </svg>
             </button>
             <button
               onClick={onDelete}
-              className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+              className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
               title="Delete Agent"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
               </svg>
             </button>
           </div>
-        </div>
-      </div>
 
-      {/* Agent Settings Summary */}
-      <div className="p-4 bg-gray-50 border-b border-gray-200">
-        <div className="flex flex-wrap gap-4 text-sm">
-          <div className="flex items-center gap-2">
-            <span className="text-gray-500">Model:</span>
-            <span className="font-medium text-gray-700">{agent.agent_options?.model || "Default"}</span>
+          {/* Center: Agent Settings (Horizontal) */}
+          <div className="hidden lg:flex items-center gap-4 text-xs">
+            <div className="flex items-center gap-1.5 px-2 py-1 bg-white rounded border border-gray-200">
+              <span className="text-gray-500">Model:</span>
+              <span className="font-medium text-gray-700">{agent.agent_options?.model?.split('-').slice(-2).join('-') || "Default"}</span>
+            </div>
+            <div className="flex items-center gap-1.5 px-2 py-1 bg-white rounded border border-gray-200">
+              <span className="text-gray-500">Turns:</span>
+              <span className="font-medium text-gray-700">{agent.agent_options?.max_turns || 10}</span>
+            </div>
+            <div className="flex items-center gap-1.5 px-2 py-1 bg-white rounded border border-gray-200">
+              <span className="text-gray-500">Tools:</span>
+              <span className="font-medium text-gray-700">{agent.agent_options?.allowed_tools?.length || 0}</span>
+            </div>
           </div>
+
+          {/* Right: Session Controls */}
           <div className="flex items-center gap-2">
-            <span className="text-gray-500">Max Turns:</span>
-            <span className="font-medium text-gray-700">{agent.agent_options?.max_turns || 10}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-gray-500">Tools:</span>
-            <span className="font-medium text-gray-700">{agent.agent_options?.allowed_tools?.length || 0} enabled</span>
+            {/* Session Mode Toggle */}
+            <label className="flex items-center gap-1.5 cursor-pointer px-2 py-1 bg-white rounded border border-gray-200">
+              <span className={`text-xs ${!isStatefulMode ? 'font-medium text-gray-700' : 'text-gray-400'}`}>Stateless</span>
+              <div className="relative">
+                <input
+                  type="checkbox"
+                  checked={isStatefulMode}
+                  onChange={onToggleStatefulMode}
+                  className="sr-only peer"
+                />
+                <div className="w-7 h-4 bg-gray-300 rounded-full peer peer-checked:bg-indigo-600 transition-colors"></div>
+                <div className="absolute left-0.5 top-0.5 bg-white w-3 h-3 rounded-full transition-transform peer-checked:translate-x-3"></div>
+              </div>
+              <span className={`text-xs ${isStatefulMode ? 'font-medium text-indigo-700' : 'text-gray-400'}`}>Stateful</span>
+            </label>
+
+            {/* Session Selector (only when stateful) */}
+            {isStatefulMode && (
+              <>
+                <select
+                  value={selectedSession?.session_id || ""}
+                  onChange={(e) => {
+                    const session = sessions.find(s => s.session_id === e.target.value);
+                    onSessionSelect(session || null);
+                  }}
+                  className="px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white max-w-[200px]"
+                >
+                  <option value="">New Session</option>
+                  {sessions.map(session => (
+                    <option key={session.session_id} value={session.session_id}>
+                      {session.name}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  onClick={onCreateSession}
+                  className="p-1.5 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors"
+                  title="Create New Session"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                </button>
+                {selectedSession && (
+                  <button
+                    onClick={() => onDeleteSession(selectedSession.session_id)}
+                    className="p-1.5 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+                    title="Delete Session"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+                )}
+              </>
+            )}
           </div>
         </div>
-        {agent.agent_options?.system_prompt && (
-          <div className="mt-3 p-3 bg-white rounded-lg border border-gray-200">
-            <span className="text-xs text-gray-500 block mb-1">System Prompt:</span>
-            <p className="text-sm text-gray-700 line-clamp-2">{agent.agent_options.system_prompt}</p>
-          </div>
-        )}
       </div>
 
       {/* Log Window */}
@@ -509,13 +662,22 @@ function AgentInfoPanel({
             </span>
           )}
           <div className="ml-auto flex items-center gap-2">
+            {isLoadingHistory && (
+              <span className="flex items-center gap-2 text-blue-400">
+                <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Loading history...
+              </span>
+            )}
             {isExecuting && (
               <span className="flex items-center gap-2 text-green-400">
                 <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
                 Running...
               </span>
             )}
-            {logs.length > 0 && !isExecuting && (
+            {logs.length > 0 && !isExecuting && !isLoadingHistory && (
               <button
                 onClick={onClearLogs}
                 className="px-2 py-1 text-xs text-gray-400 hover:text-white hover:bg-gray-700 rounded transition-colors"
@@ -531,7 +693,16 @@ function AgentInfoPanel({
           className="flex-1 bg-gray-900 p-4 overflow-y-auto"
           style={{ minHeight: '200px' }}
         >
-          {logs.length === 0 ? (
+          {isLoadingHistory ? (
+            <div className="text-blue-400 text-center py-12">
+              <svg className="w-12 h-12 mx-auto mb-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              <p className="text-sm font-medium">Loading conversation history...</p>
+              <p className="text-xs mt-1 text-gray-500">Please wait</p>
+            </div>
+          ) : logs.length === 0 ? (
             <div className="text-gray-500 text-center py-12">
               <svg className="w-12 h-12 mx-auto mb-3 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -607,6 +778,7 @@ export default function AgentManager() {
   const [agents, setAgents] = useState<AgentInfo[]>([]);
   const [selectedAgent, setSelectedAgent] = useState<AgentInfo | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadingAgent, setLoadingAgent] = useState(false);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingAgent, setEditingAgent] = useState<AgentInfo | null>(null);
   const [agentManagerService, setAgentManagerService] = useState<any>(null);
@@ -615,6 +787,12 @@ export default function AgentManager() {
   const [taskInput, setTaskInput] = useState("");
   const [isExecuting, setIsExecuting] = useState(false);
   const [logs, setLogs] = useState<LogEntry[]>([]);
+
+  // Session management state
+  const [sessions, setSessions] = useState<SessionInfo[]>([]);
+  const [selectedSession, setSelectedSession] = useState<SessionInfo | null>(null);
+  const [isStatefulMode, setIsStatefulMode] = useState(false);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
   // Get the agent manager service
   const getAgentManagerService = useCallback(async () => {
@@ -647,12 +825,148 @@ export default function AgentManager() {
     }
   }, [agentManagerService, getAgentManagerService]);
 
+  // Load sessions for selected agent
+  const loadSessions = useCallback(async (agentId: string) => {
+    const svc = agentManagerService || await getAgentManagerService();
+    if (!svc) return;
+
+    try {
+      const sessionList = await svc.list_sessions({ agent_id: agentId, _rkwargs: true });
+      setSessions(sessionList || []);
+    } catch (err) {
+      console.error("Failed to load sessions:", err);
+      setSessions([]);
+    }
+  }, [agentManagerService, getAgentManagerService]);
+
+  // Extract session name from session ID
+  const extractSessionName = (sessionId: string): string => {
+    // Session IDs are like "hypha-agents/alluring-recreation-pick-suspiciously"
+    // We want to extract the readable part after the last "/"
+    const parts = sessionId.split('/');
+    return parts[parts.length - 1];
+  };
+
+  // Create a new session
+  const handleCreateSession = async (agentId: string, sessionName?: string) => {
+    const svc = agentManagerService || await getAgentManagerService();
+    if (!svc) {
+      alert("Agent manager service not available");
+      return null;
+    }
+
+    try {
+      const session = await svc.create_session({
+        agent_id: agentId,
+        name: sessionName || "New Session",
+        description: "",
+        _rkwargs: true
+      });
+
+      // Extract readable name from session_id and update session object
+      const extractedName = extractSessionName(session.session_id);
+      session.name = extractedName;
+
+      await loadSessions(agentId);
+      return session;
+    } catch (err) {
+      console.error("Failed to create session:", err);
+      alert(`Failed to create session: ${err}`);
+      return null;
+    }
+  };
+
+  // Delete a session
+  const handleDeleteSession = async (sessionId: string, agentId: string) => {
+    if (!window.confirm("Are you sure you want to delete this session and its conversation history?")) return;
+
+    const svc = agentManagerService || await getAgentManagerService();
+    if (!svc) return;
+
+    try {
+      await svc.delete_session({ session_id: sessionId, _rkwargs: true });
+      if (selectedSession?.session_id === sessionId) {
+        setSelectedSession(null);
+        setLogs([]);
+      }
+      await loadSessions(agentId);
+    } catch (err) {
+      console.error("Failed to delete session:", err);
+      alert(`Failed to delete session: ${err}`);
+    }
+  };
+
+  // Load conversation history for a session
+  const loadConversationHistory = async (sessionId: string) => {
+    const svc = agentManagerService || await getAgentManagerService();
+    if (!svc) return;
+
+    setIsLoadingHistory(true);
+    try {
+      const history = await svc.get_conversation_history({ session_id: sessionId, _rkwargs: true });
+
+      console.log('Loading conversation history for session:', sessionId);
+      console.log('History received:', history);
+
+      // Convert history to log entries
+      const historyLogs: LogEntry[] = [];
+
+      if (Array.isArray(history) && history.length > 0) {
+        for (const turn of history) {
+          // Add each event from the turn
+          if (Array.isArray(turn.events)) {
+            for (const event of turn.events) {
+              // Extract content based on event type
+              let content = '';
+              if (event.content) {
+                content = event.content;
+              } else if (event.summary) {
+                content = event.summary;
+              } else if (event.name) {
+                // For tool_use events
+                content = `Using tool: ${event.name}`;
+              } else {
+                content = JSON.stringify(event);
+              }
+
+              historyLogs.push({
+                id: `${turn.timestamp}-${Math.random().toString(36).substring(2, 9)}`,
+                timestamp: turn.timestamp * 1000, // Convert to milliseconds
+                type: event.type as LogEntry['type'],
+                content: content,
+                details: event
+              });
+            }
+          }
+        }
+      }
+
+      console.log('Converted to log entries:', historyLogs);
+      setLogs(historyLogs);
+    } catch (err) {
+      console.error("Failed to load conversation history:", err);
+      // Don't clear logs on error - keep existing ones
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
+
   // Initialize service and load agents when logged in
   useEffect(() => {
     if (isLoggedIn && server) {
       loadAgents();
     }
   }, [isLoggedIn, server, loadAgents]);
+
+  // Load sessions when agent is selected
+  useEffect(() => {
+    if (selectedAgent) {
+      loadSessions(selectedAgent.agent_id);
+    } else {
+      setSessions([]);
+      setSelectedSession(null);
+    }
+  }, [selectedAgent, loadSessions]);
 
   // Create agent
   const handleCreateAgent = async (data: { name: string; description: string; agent_options: AgentOptions }) => {
@@ -663,6 +977,8 @@ export default function AgentManager() {
     }
 
     try {
+      let updatedAgentId: string | null = null;
+
       if (editingAgent) {
         // Update existing agent
         await svc.update_agent({
@@ -672,16 +988,28 @@ export default function AgentManager() {
           agent_options: data.agent_options,
           _rkwargs: true
         });
+        updatedAgentId = editingAgent.agent_id;
       } else {
         // Create new agent
-        await svc.create_agent({
+        const newAgent = await svc.create_agent({
           name: data.name,
           description: data.description,
           agent_options: data.agent_options,
           _rkwargs: true
         });
+        updatedAgentId = newAgent.agent_id;
       }
+
+      // Reload agents list
       await loadAgents();
+
+      // Update selectedAgent if we edited the currently selected agent
+      if (updatedAgentId && selectedAgent?.agent_id === updatedAgentId) {
+        // Get the updated agent from the service
+        const updatedAgent = await svc.get_agent({ agent_id: updatedAgentId, _rkwargs: true });
+        setSelectedAgent(updatedAgent);
+      }
+
       setEditingAgent(null);
     } catch (err) {
       console.error("Failed to create/update agent:", err);
@@ -718,6 +1046,16 @@ export default function AgentManager() {
       return;
     }
 
+    // If stateful mode but no session, create one first (without prompting)
+    let sessionId = selectedSession?.session_id;
+    if (isStatefulMode && !sessionId) {
+      const newSession = await handleCreateSession(selectedAgent.agent_id);
+      if (newSession) {
+        sessionId = newSession.session_id;
+        setSelectedSession(newSession);
+      }
+    }
+
     setIsExecuting(true);
     const task = taskInput.trim();
     setTaskInput("");
@@ -732,11 +1070,18 @@ export default function AgentManager() {
     }]);
 
     try {
-      const generator = await svc.execute_task({
+      const executeParams: any = {
         agent_id: selectedAgent.agent_id,
         task: task,
         _rkwargs: true
-      });
+      };
+
+      // Add session_id if in stateful mode
+      if (sessionId) {
+        executeParams.session_id = sessionId;
+      }
+
+      const generator = await svc.execute_task(executeParams);
 
       for await (const event of generator) {
         const logEntry: LogEntry = {
@@ -876,9 +1221,26 @@ export default function AgentManager() {
             agents.map(agent => (
               <button
                 key={agent.agent_id}
-                onClick={() => {
-                  setSelectedAgent(agent);
+                onClick={async () => {
+                  // Show loading state for agent selection
+                  setLoadingAgent(true);
                   setLogs([]); // Clear logs when switching agents
+
+                  try {
+                    // Fetch full agent details when selecting
+                    const svc = agentManagerService || await getAgentManagerService();
+                    if (svc) {
+                      const fullAgent = await svc.get_agent({ agent_id: agent.agent_id, _rkwargs: true });
+                      setSelectedAgent(fullAgent);
+                    } else {
+                      setSelectedAgent(agent);
+                    }
+                  } catch (err) {
+                    console.error('Failed to fetch agent details:', err);
+                    setSelectedAgent(agent); // Fallback to list data
+                  } finally {
+                    setLoadingAgent(false);
+                  }
                 }}
                 className={`w-full text-left p-3 rounded-lg border transition-all transform hover:scale-[1.02] ${
                   selectedAgent?.agent_id === agent.agent_id
@@ -903,7 +1265,18 @@ export default function AgentManager() {
 
       {/* Main Content Area */}
       <div className="flex-1 overflow-hidden">
-        {selectedAgent ? (
+        {loadingAgent ? (
+          <div className="h-full flex items-center justify-center bg-gradient-to-br from-gray-50 to-blue-50">
+            <div className="text-center">
+              <svg className="w-16 h-16 mx-auto mb-4 text-indigo-600 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              <p className="text-lg font-medium text-gray-700">Loading agent...</p>
+              <p className="text-sm text-gray-500 mt-1">Please wait</p>
+            </div>
+          </div>
+        ) : selectedAgent ? (
           <AgentInfoPanel
             agent={selectedAgent}
             onEdit={() => {
@@ -917,6 +1290,41 @@ export default function AgentManager() {
             taskInput={taskInput}
             setTaskInput={setTaskInput}
             onClearLogs={() => setLogs([])}
+            sessions={sessions}
+            selectedSession={selectedSession}
+            isLoadingHistory={isLoadingHistory}
+            onSessionSelect={async (session) => {
+              setSelectedSession(session);
+              if (session) {
+                // Load conversation history when session is selected
+                await loadConversationHistory(session.session_id);
+              } else {
+                // Clear logs when no session selected
+                setLogs([]);
+              }
+            }}
+            onCreateSession={async () => {
+              if (selectedAgent) {
+                const newSession = await handleCreateSession(selectedAgent.agent_id);
+                if (newSession) {
+                  setSelectedSession(newSession);
+                  setLogs([]);
+                }
+              }
+            }}
+            onDeleteSession={async (sessionId) => {
+              if (selectedAgent) {
+                await handleDeleteSession(sessionId, selectedAgent.agent_id);
+              }
+            }}
+            isStatefulMode={isStatefulMode}
+            onToggleStatefulMode={() => {
+              setIsStatefulMode(!isStatefulMode);
+              if (isStatefulMode) {
+                // Switching to stateless mode
+                setSelectedSession(null);
+              }
+            }}
           />
         ) : (
           <div className="flex items-center justify-center h-full p-8">
