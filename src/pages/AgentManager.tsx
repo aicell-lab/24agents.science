@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useHyphaStore } from "../store/hyphaStore";
 
 interface AgentInfo {
@@ -489,7 +489,9 @@ function AgentInfoPanel({
   onDeleteSession,
   isStatefulMode,
   onToggleStatefulMode,
-  isLoadingHistory
+  isLoadingHistory,
+  copiedAgentId,
+  setCopiedAgentId
 }: {
   agent: AgentInfo;
   onEdit: () => void;
@@ -508,6 +510,8 @@ function AgentInfoPanel({
   isStatefulMode: boolean;
   onToggleStatefulMode: () => void;
   isLoadingHistory: boolean;
+  copiedAgentId: boolean;
+  setCopiedAgentId: (val: boolean) => void;
 }) {
   const logContainerRef = useRef<HTMLDivElement>(null);
   const [expandedLogs, setExpandedLogs] = useState<Set<string>>(new Set());
@@ -545,7 +549,28 @@ function AgentInfoPanel({
             </div>
             <div className="min-w-0 flex-1">
               <h1 className="text-lg font-bold text-gray-900 truncate">{agent.name}</h1>
-              <p className="text-xs text-gray-500 truncate">{agent.description || "No description"}</p>
+              <div className="flex items-center gap-2">
+                <p className="text-xs text-gray-400 font-mono truncate">{agent.agent_id}</p>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(agent.agent_id);
+                    setCopiedAgentId(true);
+                    setTimeout(() => setCopiedAgentId(false), 2000);
+                  }}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                  title="Copy agent ID"
+                >
+                  {copiedAgentId ? (
+                    <svg className="w-3 h-3 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  ) : (
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
 
@@ -773,12 +798,14 @@ function AgentInfoPanel({
 // Main Agent Manager Page
 export default function AgentManager() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { isLoggedIn, server, login } = useHyphaStore();
 
   const [agents, setAgents] = useState<AgentInfo[]>([]);
   const [selectedAgent, setSelectedAgent] = useState<AgentInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingAgent, setLoadingAgent] = useState(false);
+  const [copiedAgentId, setCopiedAgentId] = useState(false);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingAgent, setEditingAgent] = useState<AgentInfo | null>(null);
   const [agentManagerService, setAgentManagerService] = useState<any>(null);
@@ -863,12 +890,17 @@ export default function AgentManager() {
         _rkwargs: true
       });
 
-      // Extract readable name from session_id and update session object
+      // Extract readable name from session_id
       const extractedName = extractSessionName(session.session_id);
-      session.name = extractedName;
 
+      // Reload sessions to get the updated list with proper names
       await loadSessions(agentId);
-      return session;
+
+      // Return session with extracted name
+      return {
+        ...session,
+        name: extractedName
+      };
     } catch (err) {
       console.error("Failed to create session:", err);
       alert(`Failed to create session: ${err}`);
@@ -967,6 +999,37 @@ export default function AgentManager() {
       setSelectedSession(null);
     }
   }, [selectedAgent, loadSessions]);
+
+  // Handle URL query parameter for agent selection
+  useEffect(() => {
+    const agentIdFromUrl = searchParams.get('agent');
+
+    // Only auto-select if we have agents loaded and URL has agent parameter
+    if (agentIdFromUrl && agents.length > 0 && !selectedAgent) {
+      const agentToSelect = agents.find(a => a.agent_id === agentIdFromUrl);
+
+      if (agentToSelect) {
+        // Fetch and select the agent
+        (async () => {
+          setLoadingAgent(true);
+          try {
+            const svc = agentManagerService || await getAgentManagerService();
+            if (svc) {
+              const fullAgent = await svc.get_agent({ agent_id: agentIdFromUrl, _rkwargs: true });
+              setSelectedAgent(fullAgent);
+            } else {
+              setSelectedAgent(agentToSelect);
+            }
+          } catch (err) {
+            console.error('Failed to load agent from URL:', err);
+            setSelectedAgent(agentToSelect);
+          } finally {
+            setLoadingAgent(false);
+          }
+        })();
+      }
+    }
+  }, [searchParams, agents, selectedAgent, agentManagerService, getAgentManagerService]);
 
   // Create agent
   const handleCreateAgent = async (data: { name: string; description: string; agent_options: AgentOptions }) => {
@@ -1232,12 +1295,16 @@ export default function AgentManager() {
                     if (svc) {
                       const fullAgent = await svc.get_agent({ agent_id: agent.agent_id, _rkwargs: true });
                       setSelectedAgent(fullAgent);
+                      // Update URL with agent query parameter
+                      setSearchParams({ agent: agent.agent_id });
                     } else {
                       setSelectedAgent(agent);
+                      setSearchParams({ agent: agent.agent_id });
                     }
                   } catch (err) {
                     console.error('Failed to fetch agent details:', err);
                     setSelectedAgent(agent); // Fallback to list data
+                    setSearchParams({ agent: agent.agent_id });
                   } finally {
                     setLoadingAgent(false);
                   }
@@ -1293,6 +1360,8 @@ export default function AgentManager() {
             sessions={sessions}
             selectedSession={selectedSession}
             isLoadingHistory={isLoadingHistory}
+            copiedAgentId={copiedAgentId}
+            setCopiedAgentId={setCopiedAgentId}
             onSessionSelect={async (session) => {
               setSelectedSession(session);
               if (session) {
