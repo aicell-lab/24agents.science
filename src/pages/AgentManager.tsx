@@ -971,86 +971,54 @@ export default function AgentManager() {
 
     setIsLoadingHistory(true);
     try {
-      const history = await svc.get_conversation_history({ session_id: sessionId, _rkwargs: true });
+      const result = await svc.get_conversation_history({ session_id: sessionId, _rkwargs: true });
 
       console.log('Loading conversation history for session:', sessionId);
-      console.log('History received:', history);
+      console.log('History result:', result);
 
       // Convert history to log entries
       const historyLogs: LogEntry[] = [];
 
-      if (Array.isArray(history) && history.length > 0) {
-        for (const turn of history) {
+      // Process saved turns from artifact manager
+      if (result.turns && Array.isArray(result.turns) && result.turns.length > 0) {
+        for (const turn of result.turns) {
           // Add each event from the turn
           if (Array.isArray(turn.events)) {
             for (const event of turn.events) {
-              // Extract content based on event type (same logic as live events)
-              let content = '';
-
-              switch (event.type) {
-                case 'user':
-                  content = event.content || '';
-                  break;
-                case 'assistant':
-                  content = event.content || '';
-                  break;
-                case 'tool_use':
-                  content = `Using tool: ${event.name}`;
-                  break;
-                case 'tool_result':
-                  // Content can be: string, list of dicts (with 'type' and 'text'), or null
-                  const isError = event.is_error === true;
-                  const resultPrefix = isError ? 'Tool error' : 'Tool result';
-
-                  let resultContent = '';
-                  if (typeof event.content === 'string') {
-                    resultContent = event.content.substring(0, 200);
-                  } else if (Array.isArray(event.content)) {
-                    // Extract text from list of content blocks
-                    resultContent = event.content
-                      .map((block: any) => block.text || block.content || JSON.stringify(block))
-                      .join('\n')
-                      .substring(0, 200);
-                  } else if (event.content) {
-                    resultContent = JSON.stringify(event.content).substring(0, 200);
-                  } else {
-                    resultContent = '(no content)';
-                  }
-
-                  content = `${resultPrefix}: ${resultContent}...`;
-                  break;
-                case 'result':
-                  const duration = event.duration_ms ? ` (${Math.round(event.duration_ms)}ms)` : '';
-                  const turns = event.turns_used ? ` - ${event.turns_used} turn${event.turns_used > 1 ? 's' : ''}` : '';
-                  content = `Task completed${turns}${duration}. ${event.summary?.substring(0, 300) || ''}`;
-                  break;
-                case 'error':
-                  content = `Error: ${event.error || 'Unknown error'}`;
-                  break;
-                case 'system':
-                  content = `System: ${event.subtype || ''} - ${JSON.stringify(event.data || {})}`;
-                  break;
-                default:
-                  content = JSON.stringify(event);
+              const logEntry = processEventToLog(event);
+              if (logEntry) {
+                // Use turn timestamp for historical events
+                logEntry.timestamp = turn.timestamp * 1000; // Convert to milliseconds
+                logEntry.id = `${turn.timestamp}-${Math.random().toString(36).substring(2, 9)}`;
+                historyLogs.push(logEntry);
               }
-
-              historyLogs.push({
-                id: `${turn.timestamp}-${Math.random().toString(36).substring(2, 9)}`,
-                timestamp: turn.timestamp * 1000, // Convert to milliseconds
-                type: event.type as LogEntry['type'],
-                content: content,
-                details: event
-              });
             }
           }
         }
       }
 
-      console.log('Converted to log entries:', historyLogs);
+      // Process live events from current ongoing task (not yet saved)
+      if (result.live_events && Array.isArray(result.live_events) && result.live_events.length > 0) {
+        console.log('Found live events from ongoing task:', result.live_events.length);
+        for (const event of result.live_events) {
+          const logEntry = processEventToLog(event);
+          if (logEntry) {
+            historyLogs.push(logEntry);
+          }
+        }
+      }
+
+      console.log('Converted to log entries:', historyLogs.length, 'entries');
+      console.log('Has ongoing task:', result.has_ongoing_task);
+
       setLogs(historyLogs);
+
+      // Return whether there's an ongoing task for reconnection logic
+      return result.has_ongoing_task;
     } catch (err) {
       console.error("Failed to load conversation history:", err);
       // Don't clear logs on error - keep existing ones
+      return false;
     } finally {
       setIsLoadingHistory(false);
     }
@@ -1172,7 +1140,135 @@ export default function AgentManager() {
     }
   };
 
-  // Execute task
+  // Helper function to process event and convert to log entry
+  const processEventToLog = (event: any): LogEntry | null => {
+    const logEntry: LogEntry = {
+      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      timestamp: Date.now(),
+      type: event.type as LogEntry['type'],
+      content: '',
+      details: event
+    };
+
+    switch (event.type) {
+      case 'user':
+        logEntry.content = event.content || '';
+        break;
+      case 'assistant':
+        logEntry.content = event.content || '';
+        break;
+      case 'tool_use':
+        logEntry.content = `Using tool: ${event.name}`;
+        break;
+      case 'tool_result':
+        // Tool results can come from user or assistant role
+        // Content can be: string, list of dicts (with 'type' and 'text'), or null
+        const isError = event.is_error === true;
+        const resultPrefix = isError ? 'Tool error' : 'Tool result';
+
+        let resultContent = '';
+        if (typeof event.content === 'string') {
+          resultContent = event.content.substring(0, 200);
+        } else if (Array.isArray(event.content)) {
+          // Extract text from list of content blocks
+          resultContent = event.content
+            .map((block: any) => block.text || block.content || JSON.stringify(block))
+            .join('\n')
+            .substring(0, 200);
+        } else if (event.content) {
+          resultContent = JSON.stringify(event.content).substring(0, 200);
+        } else {
+          resultContent = '(no content)';
+        }
+
+        logEntry.content = `${resultPrefix}: ${resultContent}...`;
+        break;
+      case 'result':
+        // Result event includes rich metadata
+        const duration = event.duration_ms ? ` (${Math.round(event.duration_ms)}ms)` : '';
+        const turns = event.turns_used ? ` - ${event.turns_used} turn${event.turns_used > 1 ? 's' : ''}` : '';
+        logEntry.content = `Task completed${turns}${duration}. ${event.summary?.substring(0, 300) || ''}`;
+        break;
+      case 'error':
+        logEntry.content = `Error: ${event.error || 'Unknown error'}`;
+        break;
+      case 'system':
+        logEntry.content = `System: ${event.subtype || ''} - ${JSON.stringify(event.data || {})}`;
+        break;
+      case 'info':
+        // Info events from watch_task (e.g., "No ongoing task")
+        logEntry.content = event.message || 'Info';
+        break;
+      case 'done':
+        // Don't create log entry for done events
+        return null;
+      default:
+        logEntry.content = JSON.stringify(event);
+    }
+
+    return logEntry.content ? logEntry : null;
+  };
+
+  // Watch task events using watch_task API
+  const watchTaskEvents = async (sessionId: string, isReconnection: boolean = false) => {
+    const svc = agentManagerService || await getAgentManagerService();
+    if (!svc) return;
+
+    try {
+      console.log(`Watching task for session: ${sessionId} (reconnection: ${isReconnection})`);
+      const generator = await svc.watch_task({ session_id: sessionId, _rkwargs: true });
+
+      let hasEvents = false;
+      for await (const event of generator) {
+        console.log('Watch task event:', event);
+
+        // If this is a reconnection attempt and we get an info message, it means no task is running
+        // Don't add this to the UI logs - it's expected
+        if (isReconnection && event.type === 'info') {
+          console.log('No active task found during reconnection (expected)');
+          break;
+        }
+
+        // If we get an error event about "Session not found" during reconnection, it's expected
+        // The session exists as a permanent session but has no active task queue
+        if (isReconnection && event.type === 'error' && event.error?.includes('not found')) {
+          console.log('Session has no active task queue (expected for reconnection)');
+          break;
+        }
+
+        hasEvents = true;
+        const logEntry = processEventToLog(event);
+        if (logEntry) {
+          setLogs(prev => [...prev, logEntry]);
+        }
+
+        // Stop watching when task completes
+        if (event.type === 'done' || event.type === 'error' || event.type === 'info') {
+          break;
+        }
+      }
+
+      if (hasEvents) {
+        console.log('Successfully reconnected to ongoing task');
+      }
+    } catch (err) {
+      console.error("Error watching task:", err);
+      // Only show error in UI if it's NOT a reconnection attempt
+      // Reconnection errors are expected and should be silently ignored
+      if (!isReconnection) {
+        setLogs(prev => [...prev, {
+          id: `${Date.now()}-error`,
+          timestamp: Date.now(),
+          type: 'error',
+          content: `Watch task error: ${err}`
+        }]);
+      }
+    } finally {
+      setIsExecuting(false);
+    }
+  };
+
+  // Execute task using job-style submit_task + watch_task
   const handleExecuteTask = async () => {
     if (!selectedAgent || !taskInput.trim() || isExecuting) return;
 
@@ -1206,7 +1302,7 @@ export default function AgentManager() {
     }]);
 
     try {
-      const executeParams: any = {
+      const submitParams: any = {
         agent_id: selectedAgent.agent_id,
         task: task,
         _rkwargs: true
@@ -1214,80 +1310,22 @@ export default function AgentManager() {
 
       // Add session_id if in stateful mode
       if (sessionId) {
-        executeParams.session_id = sessionId;
+        submitParams.session_id = sessionId;
         // Enable artifact tools for session-based execution
-        executeParams.enable_artifact_tools = true;
-        executeParams.add_session_artifact_hint = true;
+        submitParams.enable_artifact_tools = true;
+        submitParams.add_session_artifact_hint = true;
       }
 
-      const generator = await svc.execute_task(executeParams);
+      // Submit task (returns immediately with session_id)
+      console.log('Submitting task with params:', submitParams);
+      const result = await svc.submit_task(submitParams);
+      console.log('Task submitted:', result);
 
-      for await (const event of generator) {
-        const logEntry: LogEntry = {
-          id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          timestamp: Date.now(),
-          type: event.type as LogEntry['type'],
-          content: '',
-          details: event
-        };
+      const taskSessionId = result.session_id;
 
-        switch (event.type) {
-          case 'user':
-            logEntry.content = event.content || '';
-            break;
-          case 'assistant':
-            logEntry.content = event.content || '';
-            break;
-          case 'tool_use':
-            logEntry.content = `Using tool: ${event.name}`;
-            break;
-          case 'tool_result':
-            // Tool results can come from user or assistant role
-            // Content can be: string, list of dicts (with 'type' and 'text'), or null
-            const isError = event.is_error === true;
-            const resultPrefix = isError ? 'Tool error' : 'Tool result';
+      // Watch task events
+      await watchTaskEvents(taskSessionId);
 
-            let resultContent = '';
-            if (typeof event.content === 'string') {
-              resultContent = event.content.substring(0, 200);
-            } else if (Array.isArray(event.content)) {
-              // Extract text from list of content blocks
-              resultContent = event.content
-                .map((block: any) => block.text || block.content || JSON.stringify(block))
-                .join('\n')
-                .substring(0, 200);
-            } else if (event.content) {
-              resultContent = JSON.stringify(event.content).substring(0, 200);
-            } else {
-              resultContent = '(no content)';
-            }
-
-            logEntry.content = `${resultPrefix}: ${resultContent}...`;
-            break;
-          case 'result':
-            // Result event includes rich metadata
-            const duration = event.duration_ms ? ` (${Math.round(event.duration_ms)}ms)` : '';
-            const turns = event.turns_used ? ` - ${event.turns_used} turn${event.turns_used > 1 ? 's' : ''}` : '';
-            logEntry.content = `Task completed${turns}${duration}. ${event.summary?.substring(0, 300) || ''}`;
-            break;
-          case 'error':
-            logEntry.content = `Error: ${event.error || 'Unknown error'}`;
-            break;
-          case 'system':
-            logEntry.content = `System: ${event.subtype || ''} - ${JSON.stringify(event.data || {})}`;
-            break;
-          default:
-            logEntry.content = JSON.stringify(event);
-        }
-
-        if (logEntry.content) {
-          setLogs(prev => [...prev, logEntry]);
-        }
-
-        if (event.type === 'done' || event.type === 'error') {
-          break;
-        }
-      }
     } catch (err) {
       console.error("Task execution error:", err);
       setLogs(prev => [...prev, {
@@ -1296,7 +1334,6 @@ export default function AgentManager() {
         type: 'error',
         content: `Execution failed: ${err}`
       }]);
-    } finally {
       setIsExecuting(false);
     }
   };
@@ -1318,15 +1355,6 @@ export default function AgentManager() {
         <div className="p-4 border-b border-gray-200 bg-white">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-lg font-semibold text-gray-800">My Agents</h2>
-            <button
-              onClick={() => navigate('/agents')}
-              className="text-gray-500 hover:text-gray-700 transition-colors"
-              title="Back to Agents"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
           </div>
 
           {/* Create Agent Button */}
@@ -1467,8 +1495,26 @@ export default function AgentManager() {
             onSessionSelect={async (session) => {
               setSelectedSession(session);
               if (session) {
-                // Load conversation history when session is selected
-                await loadConversationHistory(session.session_id);
+                // Load conversation history (includes both saved turns and live events)
+                const hasOngoingTask = await loadConversationHistory(session.session_id);
+
+                // If there's an ongoing task, reconnect to watch for new events
+                // This allows resuming tasks after page reload or connection interruption
+                if (hasOngoingTask && !isExecuting) {
+                  const svc = agentManagerService || await getAgentManagerService();
+                  if (svc) {
+                    try {
+                      console.log(`Reconnecting to ongoing task in session: ${session.session_id}`);
+                      setIsExecuting(true);
+
+                      // Watch the session for new events (isReconnection=true suppresses expected errors)
+                      await watchTaskEvents(session.session_id, true);
+                    } catch (err) {
+                      console.error("Error reconnecting to ongoing task:", err);
+                      setIsExecuting(false);
+                    }
+                  }
+                }
               } else {
                 // Clear logs when no session selected
                 setLogs([]);
