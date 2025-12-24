@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useHyphaStore } from "../store/hyphaStore";
+import SessionArtifactDialog from "../components/SessionArtifactDialog";
 
 interface AgentInfo {
   agent_id: string;
@@ -515,6 +516,7 @@ function AgentInfoPanel({
 }) {
   const logContainerRef = useRef<HTMLDivElement>(null);
   const [expandedLogs, setExpandedLogs] = useState<Set<string>>(new Set());
+  const [showArtifactDialog, setShowArtifactDialog] = useState(false);
 
   // Auto-scroll logs to bottom
   useEffect(() => {
@@ -658,15 +660,26 @@ function AgentInfoPanel({
                   </svg>
                 </button>
                 {selectedSession && (
-                  <button
-                    onClick={() => onDeleteSession(selectedSession.session_id)}
-                    className="p-1.5 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
-                    title="Delete Session"
-                  >
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
+                  <>
+                    <button
+                      onClick={() => setShowArtifactDialog(true)}
+                      className="p-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                      title="Manage Session Files"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={() => onDeleteSession(selectedSession.session_id)}
+                      className="p-1.5 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+                      title="Delete Session"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  </>
                 )}
               </>
             )}
@@ -791,6 +804,16 @@ function AgentInfoPanel({
           </div>
         </div>
       </div>
+
+      {/* Session Artifact Dialog */}
+      {selectedSession && (
+        <SessionArtifactDialog
+          sessionId={selectedSession.session_id}
+          sessionName={selectedSession.name}
+          isOpen={showArtifactDialog}
+          onClose={() => setShowArtifactDialog(false)}
+        />
+      )}
     </div>
   );
 }
@@ -961,17 +984,54 @@ export default function AgentManager() {
           // Add each event from the turn
           if (Array.isArray(turn.events)) {
             for (const event of turn.events) {
-              // Extract content based on event type
+              // Extract content based on event type (same logic as live events)
               let content = '';
-              if (event.content) {
-                content = event.content;
-              } else if (event.summary) {
-                content = event.summary;
-              } else if (event.name) {
-                // For tool_use events
-                content = `Using tool: ${event.name}`;
-              } else {
-                content = JSON.stringify(event);
+
+              switch (event.type) {
+                case 'user':
+                  content = event.content || '';
+                  break;
+                case 'assistant':
+                  content = event.content || '';
+                  break;
+                case 'tool_use':
+                  content = `Using tool: ${event.name}`;
+                  break;
+                case 'tool_result':
+                  // Content can be: string, list of dicts (with 'type' and 'text'), or null
+                  const isError = event.is_error === true;
+                  const resultPrefix = isError ? 'Tool error' : 'Tool result';
+
+                  let resultContent = '';
+                  if (typeof event.content === 'string') {
+                    resultContent = event.content.substring(0, 200);
+                  } else if (Array.isArray(event.content)) {
+                    // Extract text from list of content blocks
+                    resultContent = event.content
+                      .map((block: any) => block.text || block.content || JSON.stringify(block))
+                      .join('\n')
+                      .substring(0, 200);
+                  } else if (event.content) {
+                    resultContent = JSON.stringify(event.content).substring(0, 200);
+                  } else {
+                    resultContent = '(no content)';
+                  }
+
+                  content = `${resultPrefix}: ${resultContent}...`;
+                  break;
+                case 'result':
+                  const duration = event.duration_ms ? ` (${Math.round(event.duration_ms)}ms)` : '';
+                  const turns = event.turns_used ? ` - ${event.turns_used} turn${event.turns_used > 1 ? 's' : ''}` : '';
+                  content = `Task completed${turns}${duration}. ${event.summary?.substring(0, 300) || ''}`;
+                  break;
+                case 'error':
+                  content = `Error: ${event.error || 'Unknown error'}`;
+                  break;
+                case 'system':
+                  content = `System: ${event.subtype || ''} - ${JSON.stringify(event.data || {})}`;
+                  break;
+                default:
+                  content = JSON.stringify(event);
               }
 
               historyLogs.push({
@@ -1155,6 +1215,9 @@ export default function AgentManager() {
       // Add session_id if in stateful mode
       if (sessionId) {
         executeParams.session_id = sessionId;
+        // Enable artifact tools for session-based execution
+        executeParams.enable_artifact_tools = true;
+        executeParams.add_session_artifact_hint = true;
       }
 
       const generator = await svc.execute_task(executeParams);
@@ -1169,6 +1232,9 @@ export default function AgentManager() {
         };
 
         switch (event.type) {
+          case 'user':
+            logEntry.content = event.content || '';
+            break;
           case 'assistant':
             logEntry.content = event.content || '';
             break;
@@ -1176,10 +1242,33 @@ export default function AgentManager() {
             logEntry.content = `Using tool: ${event.name}`;
             break;
           case 'tool_result':
-            logEntry.content = `Tool result: ${typeof event.content === 'string' ? event.content.substring(0, 200) : JSON.stringify(event.content).substring(0, 200)}...`;
+            // Tool results can come from user or assistant role
+            // Content can be: string, list of dicts (with 'type' and 'text'), or null
+            const isError = event.is_error === true;
+            const resultPrefix = isError ? 'Tool error' : 'Tool result';
+
+            let resultContent = '';
+            if (typeof event.content === 'string') {
+              resultContent = event.content.substring(0, 200);
+            } else if (Array.isArray(event.content)) {
+              // Extract text from list of content blocks
+              resultContent = event.content
+                .map((block: any) => block.text || block.content || JSON.stringify(block))
+                .join('\n')
+                .substring(0, 200);
+            } else if (event.content) {
+              resultContent = JSON.stringify(event.content).substring(0, 200);
+            } else {
+              resultContent = '(no content)';
+            }
+
+            logEntry.content = `${resultPrefix}: ${resultContent}...`;
             break;
           case 'result':
-            logEntry.content = `Task completed. Summary: ${event.summary?.substring(0, 300) || 'No summary'}`;
+            // Result event includes rich metadata
+            const duration = event.duration_ms ? ` (${Math.round(event.duration_ms)}ms)` : '';
+            const turns = event.turns_used ? ` - ${event.turns_used} turn${event.turns_used > 1 ? 's' : ''}` : '';
+            logEntry.content = `Task completed${turns}${duration}. ${event.summary?.substring(0, 300) || ''}`;
             break;
           case 'error':
             logEntry.content = `Error: ${event.error || 'Unknown error'}`;
