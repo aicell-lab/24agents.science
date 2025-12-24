@@ -423,19 +423,27 @@ export default function SessionArtifactDialog({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200">
-          <div className="flex-1">
-            <h2 className="text-xl font-bold text-gray-900">Session Artifact: {sessionName}</h2>
-            <p className="text-sm text-gray-500 font-mono mt-1">{sessionId}</p>
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col">
+        {/* Compact Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-white">
+          <div className="flex items-center gap-3 min-w-0 flex-1">
+            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center flex-shrink-0">
+              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+              </svg>
+            </div>
+            <div className="min-w-0 flex-1">
+              <h2 className="text-lg font-bold text-gray-900 truncate">{sessionName}</h2>
+              <p className="text-xs text-gray-500 font-mono truncate">{sessionId}</p>
+            </div>
           </div>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
+            className="ml-4 text-gray-400 hover:text-gray-600 transition-colors p-1"
+            title="Close"
           >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
@@ -453,53 +461,70 @@ export default function SessionArtifactDialog({
 
         {/* Status Message */}
         {statusMessage && (
-          <div className={`px-4 py-2 text-sm ${
+          <div className={`px-6 py-2 text-sm flex items-center gap-2 ${
             statusMessage.type === 'success' ? 'bg-green-50 text-green-800 border-b border-green-200' :
             statusMessage.type === 'error' ? 'bg-red-50 text-red-800 border-b border-red-200' :
             'bg-blue-50 text-blue-800 border-b border-blue-200'
           }`}>
-            <div className="flex items-center gap-2">
-              {statusMessage.type === 'success' && (
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-              )}
-              {statusMessage.type === 'error' && (
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              )}
-              {statusMessage.type === 'info' && (
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              )}
-              <span>{statusMessage.text}</span>
-            </div>
+            {statusMessage.type === 'success' && (
+              <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            )}
+            {statusMessage.type === 'error' && (
+              <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            )}
+            {statusMessage.type === 'info' && (
+              <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            )}
+            <span className="truncate">{statusMessage.text}</span>
           </div>
         )}
 
-        {/* Toolbar */}
-        <div className="flex items-center gap-2 p-4 border-b border-gray-200 bg-gray-50">
-          {/* Stage/Commit Status and Controls */}
-          <div className="flex items-center gap-2 pr-2 border-r border-gray-300">
-            {canUpload ? (
-              <>
-                <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs font-medium rounded">
+        {/* Compact Toolbar */}
+        <div className="px-6 py-3 border-b border-gray-200 bg-gray-50/50">
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Stage/Commit Status Badge */}
+            <div className="flex items-center gap-2">
+              {canUpload ? (
+                <span className="px-2 py-1 bg-yellow-100 text-yellow-700 text-xs font-semibold rounded-md flex items-center gap-1">
+                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clipRule="evenodd" />
+                  </svg>
                   Staged
                 </span>
+              ) : (
+                <span className="px-2 py-1 bg-green-100 text-green-700 text-xs font-semibold rounded-md flex items-center gap-1">
+                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                  Committed
+                </span>
+              )}
+            </div>
+
+            <div className="h-6 w-px bg-gray-300"></div>
+
+            {/* Action Buttons - More Compact */}
+            {canUpload ? (
+              <>
                 <button
                   onClick={handleCommitArtifact}
                   disabled={operationLoading === 'commit'}
-                  className="px-3 py-2 bg-green-600 text-white text-sm rounded hover:bg-green-700 disabled:opacity-50 flex items-center gap-2"
+                  className="px-3 py-1.5 bg-green-600 text-white text-xs font-medium rounded-md hover:bg-green-700 disabled:opacity-50 flex items-center gap-1.5 transition-colors"
+                  title="Commit changes"
                 >
                   {operationLoading === 'commit' ? (
-                    <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
                   ) : (
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </svg>
                   )}
@@ -508,125 +533,131 @@ export default function SessionArtifactDialog({
                 <button
                   onClick={handleDiscardArtifact}
                   disabled={operationLoading === 'discard'}
-                  className="px-3 py-2 bg-orange-600 text-white text-sm rounded hover:bg-orange-700 disabled:opacity-50 flex items-center gap-2"
+                  className="px-3 py-1.5 bg-orange-600 text-white text-xs font-medium rounded-md hover:bg-orange-700 disabled:opacity-50 flex items-center gap-1.5 transition-colors"
+                  title="Discard changes"
                 >
                   {operationLoading === 'discard' ? (
-                    <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
                   ) : (
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                     </svg>
                   )}
-                  Discard Changes
+                  Discard
                 </button>
               </>
             ) : (
-              <>
-                <span className="px-2 py-1 bg-gray-200 text-gray-700 text-xs font-medium rounded">
-                  Committed
-                </span>
-                <button
-                  onClick={handleStageArtifact}
-                  disabled={operationLoading === 'stage'}
-                  className="px-3 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
-                >
-                  {operationLoading === 'stage' ? (
-                    <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                  ) : (
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                    </svg>
-                  )}
-                  Stage for Editing
-                </button>
-              </>
+              <button
+                onClick={handleStageArtifact}
+                disabled={operationLoading === 'stage'}
+                className="px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-md hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1.5 transition-colors"
+                title="Stage for editing"
+              >
+                {operationLoading === 'stage' ? (
+                  <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                ) : (
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                )}
+                Stage
+              </button>
             )}
+
+            <div className="h-6 w-px bg-gray-300"></div>
+
+            {/* File Operations */}
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading || !canUpload}
+              className="px-3 py-1.5 bg-indigo-600 text-white text-xs font-medium rounded-md hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-1.5 transition-colors"
+              title="Upload files"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+              </svg>
+              Upload Files
+            </button>
+
+            <button
+              onClick={() => folderInputRef.current?.click()}
+              disabled={uploading || !canUpload}
+              className="px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-md hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1.5 transition-colors"
+              title="Upload folder"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+              </svg>
+              Upload Folder
+            </button>
+
+            <button
+              onClick={() => handleCreateFolder("")}
+              disabled={uploading || !canUpload}
+              className="px-3 py-1.5 bg-emerald-600 text-white text-xs font-medium rounded-md hover:bg-emerald-700 disabled:opacity-50 flex items-center gap-1.5 transition-colors"
+              title="Create new folder"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+              </svg>
+              New Folder
+            </button>
+
+            <div className="h-6 w-px bg-gray-300 ml-auto"></div>
+
+            <button
+              onClick={handleCreateZip}
+              className="px-3 py-1.5 bg-purple-600 text-white text-xs font-medium rounded-md hover:bg-purple-700 flex items-center gap-1.5 transition-colors"
+              title="Download as ZIP"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              Download ZIP
+            </button>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              className="hidden"
+              onChange={(e) => e.target.files && handleUpload(e.target.files)}
+            />
+            <input
+              ref={folderInputRef}
+              type="file"
+              {...({ webkitdirectory: "", directory: "" } as any)}
+              className="hidden"
+              onChange={(e) => e.target.files && handleUpload(e.target.files)}
+            />
           </div>
-
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploading || !canUpload}
-            className="px-3 py-2 bg-indigo-600 text-white text-sm rounded hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-            </svg>
-            Upload Files
-          </button>
-
-          <button
-            onClick={() => folderInputRef.current?.click()}
-            disabled={uploading || !canUpload}
-            className="px-3 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-            </svg>
-            Upload Folder
-          </button>
-
-          <button
-            onClick={() => handleCreateFolder("")}
-            disabled={uploading || !canUpload}
-            className="px-3 py-2 bg-green-600 text-white text-sm rounded hover:bg-green-700 disabled:opacity-50 flex items-center gap-2"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
-            </svg>
-            New Folder
-          </button>
-
-          <button
-            onClick={handleCreateZip}
-            className="px-3 py-2 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 flex items-center gap-2 ml-auto"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-            Download ZIP
-          </button>
-
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            className="hidden"
-            onChange={(e) => e.target.files && handleUpload(e.target.files)}
-          />
-          <input
-            ref={folderInputRef}
-            type="file"
-            {...({ webkitdirectory: "", directory: "" } as any)}
-            className="hidden"
-            onChange={(e) => e.target.files && handleUpload(e.target.files)}
-          />
         </div>
 
-        {/* Static Hosting Configuration Section */}
-        <div className="border-b border-gray-200 bg-gray-50">
+        {/* Collapsible Static Hosting Section */}
+        <div className="border-b border-gray-200">
           <button
             onClick={() => setShowStaticHostingSection(!showStaticHostingSection)}
-            className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-gray-100 transition-colors"
+            className="w-full px-6 py-2.5 flex items-center justify-between text-left hover:bg-gray-50 transition-colors"
           >
             <div className="flex items-center gap-2">
-              <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
               </svg>
-              <span className="font-semibold text-gray-700">Static Hosting</span>
+              <span className="text-sm font-semibold text-gray-700">Static Hosting</span>
               {staticHostingEnabled && (
-                <span className="px-2 py-0.5 bg-green-100 text-green-800 text-xs font-medium rounded">
+                <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs font-medium rounded">
                   Enabled
                 </span>
               )}
             </div>
             <svg
-              className={`w-5 h-5 text-gray-500 transition-transform ${showStaticHostingSection ? 'rotate-180' : ''}`}
+              className={`w-4 h-4 text-gray-500 transition-transform ${showStaticHostingSection ? 'rotate-180' : ''}`}
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -636,21 +667,21 @@ export default function SessionArtifactDialog({
           </button>
 
           {showStaticHostingSection && (
-            <div className="px-4 pb-4 space-y-4">
+            <div className="px-6 pb-4 space-y-3 bg-gray-50/50">
               {/* Enable/Disable Toggle */}
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between py-1">
                 <label className="text-sm font-medium text-gray-700">
                   Enable Static Hosting
                 </label>
                 <button
                   onClick={() => setStaticHostingEnabled(!staticHostingEnabled)}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
                     staticHostingEnabled ? 'bg-green-600' : 'bg-gray-300'
                   }`}
                 >
                   <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                      staticHostingEnabled ? 'translate-x-6' : 'translate-x-1'
+                    className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                      staticHostingEnabled ? 'translate-x-5' : 'translate-x-0.5'
                     }`}
                   />
                 </button>
@@ -660,7 +691,7 @@ export default function SessionArtifactDialog({
               {staticHostingEnabled && (
                 <>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
                       Root Directory
                     </label>
                     <input
@@ -668,16 +699,16 @@ export default function SessionArtifactDialog({
                       value={rootDirectory}
                       onChange={(e) => setRootDirectory(e.target.value)}
                       placeholder="/"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                      className="w-full px-3 py-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
                     />
                     <p className="text-xs text-gray-500 mt-1">
-                      The root directory for serving static files (e.g., "/" or "/dist")
+                      Root directory for static files (e.g., "/" or "/dist")
                     </p>
                   </div>
 
                   {/* Preview URL */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
                       Preview URL
                     </label>
                     <div className="flex items-center gap-2">
@@ -685,58 +716,56 @@ export default function SessionArtifactDialog({
                         type="text"
                         value={getPreviewUrl()}
                         readOnly
-                        className="flex-1 px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-sm font-mono text-gray-600"
+                        className="flex-1 px-3 py-1.5 border border-gray-300 rounded-md bg-gray-50 text-xs font-mono text-gray-600"
                       />
                       <button
                         onClick={handleCopyPreviewUrl}
-                        className="px-3 py-2 bg-gray-600 text-white text-sm rounded hover:bg-gray-700 flex items-center gap-1"
+                        className="px-2.5 py-1.5 bg-gray-600 text-white text-xs rounded-md hover:bg-gray-700 flex items-center gap-1"
                         title="Copy URL"
                       >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                         </svg>
-                        Copy
                       </button>
                       <button
                         onClick={() => window.open(getPreviewUrl(), "_blank")}
-                        className="px-3 py-2 bg-indigo-600 text-white text-sm rounded hover:bg-indigo-700 flex items-center gap-1"
+                        className="px-2.5 py-1.5 bg-indigo-600 text-white text-xs rounded-md hover:bg-indigo-700 flex items-center gap-1"
                         title="Open in new tab"
                       >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                         </svg>
-                        Go
                       </button>
                     </div>
                   </div>
+
+                  {/* Save Button */}
+                  <div className="flex justify-end pt-1">
+                    <button
+                      onClick={handleSaveStaticHosting}
+                      disabled={operationLoading === 'save-hosting'}
+                      className="px-4 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-md hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1.5"
+                    >
+                      {operationLoading === 'save-hosting' ? (
+                        <>
+                          <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                          Save Configuration
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </>
               )}
-
-              {/* Save Button */}
-              <div className="flex justify-end pt-2">
-                <button
-                  onClick={handleSaveStaticHosting}
-                  disabled={operationLoading === 'save-hosting'}
-                  className="px-4 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
-                >
-                  {operationLoading === 'save-hosting' ? (
-                    <>
-                      <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      Saving...
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                      Save Configuration
-                    </>
-                  )}
-                </button>
-              </div>
             </div>
           )}
         </div>
