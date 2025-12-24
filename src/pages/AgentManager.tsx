@@ -834,6 +834,14 @@ export default function AgentManager() {
     }
   }, [server]);
 
+  // Extract session name from session ID
+  const extractSessionName = (sessionId: string): string => {
+    // Session IDs are like "hypha-agents/alluring-recreation-pick-suspiciously"
+    // We want to extract the readable part after the last "/"
+    const parts = sessionId.split('/');
+    return parts[parts.length - 1];
+  };
+
   // Load agents
   const loadAgents = useCallback(async () => {
     setLoading(true);
@@ -859,20 +867,25 @@ export default function AgentManager() {
 
     try {
       const sessionList = await svc.list_sessions({ agent_id: agentId, _rkwargs: true });
-      setSessions(sessionList || []);
+
+      // Process sessions to ensure they have display names
+      const processedSessions = (sessionList || []).map((session: SessionInfo) => {
+        // If session doesn't have a name, extract it from session_id
+        if (!session.name || session.name === "New Session") {
+          return {
+            ...session,
+            name: extractSessionName(session.session_id)
+          };
+        }
+        return session;
+      });
+
+      setSessions(processedSessions);
     } catch (err) {
       console.error("Failed to load sessions:", err);
       setSessions([]);
     }
   }, [agentManagerService, getAgentManagerService]);
-
-  // Extract session name from session ID
-  const extractSessionName = (sessionId: string): string => {
-    // Session IDs are like "hypha-agents/alluring-recreation-pick-suspiciously"
-    // We want to extract the readable part after the last "/"
-    const parts = sessionId.split('/');
-    return parts[parts.length - 1];
-  };
 
   // Create a new session
   const handleCreateSession = async (agentId: string, sessionName?: string) => {
