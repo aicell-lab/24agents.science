@@ -1072,6 +1072,37 @@ export default function AgentManager() {
     }
   }, [searchParams, agents, selectedAgent, agentManagerService, getAgentManagerService]);
 
+  // Auto-load conversation history when a session is selected
+  useEffect(() => {
+    if (selectedSession && isStatefulMode) {
+      (async () => {
+        // Load conversation history (includes both saved turns and live events)
+        const hasOngoingTask = await loadConversationHistory(selectedSession.session_id);
+
+        // If there's an ongoing task, reconnect to watch for new events
+        // This allows resuming tasks after page reload or connection interruption
+        if (hasOngoingTask && !isExecuting) {
+          const svc = agentManagerService || await getAgentManagerService();
+          if (svc) {
+            try {
+              console.log(`Reconnecting to ongoing task in session: ${selectedSession.session_id}`);
+              setIsExecuting(true);
+
+              // Watch the session for new events (isReconnection=true suppresses expected errors)
+              await watchTaskEvents(selectedSession.session_id, true);
+            } catch (err) {
+              console.error("Error reconnecting to ongoing task:", err);
+              setIsExecuting(false);
+            }
+          }
+        }
+      })();
+    } else if (!selectedSession) {
+      // Clear logs when no session selected
+      setLogs([]);
+    }
+  }, [selectedSession?.session_id, isStatefulMode]);
+
   // Create agent
   const handleCreateAgent = async (data: { name: string; description: string; agent_options: AgentOptions }) => {
     const svc = agentManagerService || await getAgentManagerService();
