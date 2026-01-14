@@ -832,6 +832,7 @@ export default function AgentManager() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingAgent, setEditingAgent] = useState<AgentInfo | null>(null);
   const [agentManagerService, setAgentManagerService] = useState<any>(null);
+  const [serviceStatus, setServiceStatus] = useState<'connecting' | 'online' | 'offline'>('connecting');
 
   // Task execution state
   const [taskInput, setTaskInput] = useState("");
@@ -847,12 +848,15 @@ export default function AgentManager() {
   // Get the agent manager service
   const getAgentManagerService = useCallback(async () => {
     if (!server) return null;
+    setServiceStatus('connecting');
     try {
       const svc = await server.getService("hypha-agents/claude-agent-manager", {"mode": "last"});
       setAgentManagerService(svc);
+      setServiceStatus('online');
       return svc;
     } catch (err) {
       console.error("Failed to get agent manager service:", err);
+      setServiceStatus('offline');
       return null;
     }
   }, [server]);
@@ -875,7 +879,8 @@ export default function AgentManager() {
         return;
       }
       const agentList = await svc.list_agents();
-      setAgents(agentList || []);
+      // Reverse the list so newest agents appear first
+      setAgents((agentList || []).reverse());
     } catch (err) {
       console.error("Failed to load agents:", err);
     } finally {
@@ -1385,7 +1390,27 @@ export default function AgentManager() {
         {/* Header */}
         <div className="p-4 border-b border-gray-200 bg-white">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-lg font-semibold text-gray-800">My Agents</h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-semibold text-gray-800">My Agents</h2>
+              {isLoggedIn && (
+                <div className="flex items-center gap-1.5" title={`Service: ${serviceStatus}`}>
+                  <span className={`w-2 h-2 rounded-full ${
+                    serviceStatus === 'online' ? 'bg-green-500' :
+                    serviceStatus === 'connecting' ? 'bg-yellow-500 animate-pulse' :
+                    'bg-red-500'
+                  }`}></span>
+                  <span className={`text-xs ${
+                    serviceStatus === 'online' ? 'text-green-600' :
+                    serviceStatus === 'connecting' ? 'text-yellow-600' :
+                    'text-red-600'
+                  }`}>
+                    {serviceStatus === 'online' ? 'Online' :
+                     serviceStatus === 'connecting' ? 'Connecting...' :
+                     'Offline'}
+                  </span>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Create Agent Button */}
