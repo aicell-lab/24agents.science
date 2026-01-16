@@ -32,6 +32,8 @@ export default function SessionArtifactDialog({
   const [artifactManager, setArtifactManager] = useState<any>(null);
   const [currentArtifact, setCurrentArtifact] = useState<any>(null);
   const [operationLoading, setOperationLoading] = useState<string | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
 
@@ -85,6 +87,87 @@ export default function SessionArtifactDialog({
   }, [isOpen, artifactManager, sessionId]);
 
   const canUpload = currentArtifact?.staging !== null;
+
+  // Helper to get all file paths recursively
+  const getAllFilePaths = (fileList: FileItem[], parentPath: string = ""): string[] => {
+    const paths: string[] = [];
+    for (const file of fileList) {
+      const fullPath = parentPath ? `${parentPath}/${file.name}` : file.name;
+      paths.push(fullPath);
+      if (file.type === 'directory' && expandedDirs[fullPath]) {
+        paths.push(...getAllFilePaths(expandedDirs[fullPath], fullPath));
+      }
+    }
+    return paths;
+  };
+
+  // Toggle file selection
+  const toggleFileSelection = (filePath: string) => {
+    setSelectedFiles(prev => {
+      const next = new Set(prev);
+      if (next.has(filePath)) {
+        next.delete(filePath);
+      } else {
+        next.add(filePath);
+      }
+      return next;
+    });
+  };
+
+  // Select all visible files
+  const selectAllFiles = () => {
+    const allPaths = getAllFilePaths(files);
+    setSelectedFiles(new Set(allPaths));
+  };
+
+  // Deselect all
+  const deselectAllFiles = () => {
+    setSelectedFiles(new Set());
+  };
+
+  // Batch delete selected files
+  const handleBatchDelete = async () => {
+    if (!artifactManager || selectedFiles.size === 0) return;
+
+    const confirmMsg = `Delete ${selectedFiles.size} selected item(s)? This cannot be undone.`;
+    if (!window.confirm(confirmMsg)) return;
+
+    setOperationLoading('batch-delete');
+    try {
+      // Sort paths by depth (deepest first) to delete children before parents
+      const sortedPaths = Array.from(selectedFiles).sort((a, b) => {
+        const depthA = a.split('/').length;
+        const depthB = b.split('/').length;
+        return depthB - depthA;
+      });
+
+      for (const filePath of sortedPaths) {
+        try {
+          await artifactManager.removeFile({
+            artifact_id: sessionId,
+            file_path: filePath,
+            _rkwargs: true
+          });
+        } catch (err) {
+          console.error(`Failed to delete ${filePath}:`, err);
+        }
+      }
+
+      // Clear selection and reload
+      setSelectedFiles(new Set());
+      setIsSelectionMode(false);
+      await loadFiles("");
+      setExpandedDirs({});
+      setStatusMessage({ type: 'success', text: `Successfully deleted ${selectedFiles.size} item(s)` });
+      setTimeout(() => setStatusMessage(null), 3000);
+    } catch (err) {
+      console.error("Failed to batch delete:", err);
+      setStatusMessage({ type: 'error', text: `Failed to delete: ${err}` });
+      setTimeout(() => setStatusMessage(null), 5000);
+    } finally {
+      setOperationLoading(null);
+    }
+  };
 
   const loadFiles = async (path: string = "") => {
     if (!artifactManager) return [];
@@ -639,6 +722,85 @@ export default function SessionArtifactDialog({
           </div>
         </div>
 
+        {/* Selection Toolbar */}
+        <div className="px-6 py-2 border-b border-gray-200 bg-gray-50/80 flex items-center gap-3">
+          {/* Selection Mode Toggle */}
+          <button
+            onClick={() => {
+              setIsSelectionMode(!isSelectionMode);
+              if (isSelectionMode) {
+                setSelectedFiles(new Set());
+              }
+            }}
+            className={`px-3 py-1.5 text-xs font-medium rounded-md flex items-center gap-1.5 transition-colors ${
+              isSelectionMode
+                ? 'bg-indigo-600 text-white'
+                : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+            }`}
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+            </svg>
+            {isSelectionMode ? 'Exit Selection' : 'Select Files'}
+          </button>
+
+          {isSelectionMode && (
+            <>
+              <div className="h-5 w-px bg-gray-300"></div>
+
+              {/* Select All / Deselect All */}
+              <button
+                onClick={selectAllFiles}
+                className="px-2.5 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+              >
+                Select All
+              </button>
+              <button
+                onClick={deselectAllFiles}
+                disabled={selectedFiles.size === 0}
+                className="px-2.5 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                Deselect All
+              </button>
+
+              <div className="h-5 w-px bg-gray-300"></div>
+
+              {/* Selection Count */}
+              <span className="text-xs text-gray-600">
+                <span className="font-semibold text-indigo-600">{selectedFiles.size}</span> item{selectedFiles.size !== 1 ? 's' : ''} selected
+              </span>
+
+              {/* Batch Delete Button */}
+              <button
+                onClick={handleBatchDelete}
+                disabled={selectedFiles.size === 0 || operationLoading === 'batch-delete'}
+                className={`ml-auto px-3 py-1.5 text-xs font-medium rounded-md flex items-center gap-1.5 transition-colors ${
+                  selectedFiles.size > 0
+                    ? 'bg-red-600 text-white hover:bg-red-700'
+                    : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                }`}
+              >
+                {operationLoading === 'batch-delete' ? (
+                  <>
+                    <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    Delete Selected
+                  </>
+                )}
+              </button>
+            </>
+          )}
+        </div>
+
         {/* Collapsible Static Hosting Section */}
         <div className="border-b border-gray-200">
           <button
@@ -815,6 +977,9 @@ export default function SessionArtifactDialog({
               onCreateFolder={handleCreateFolder}
               onDrop={handleDrop}
               parentPath=""
+              isSelectionMode={isSelectionMode}
+              selectedFiles={selectedFiles}
+              onToggleSelection={toggleFileSelection}
             />
           )}
 
@@ -846,6 +1011,9 @@ function FileTreeComponent({
   onCreateFolder,
   onDrop,
   parentPath,
+  isSelectionMode,
+  selectedFiles,
+  onToggleSelection,
 }: {
   files: FileItem[];
   expandedDirs: Record<string, FileItem[]>;
@@ -856,6 +1024,9 @@ function FileTreeComponent({
   onCreateFolder: (path: string) => void;
   onDrop: (e: React.DragEvent, path: string) => void;
   parentPath: string;
+  isSelectionMode: boolean;
+  selectedFiles: Set<string>;
+  onToggleSelection: (path: string) => void;
 }) {
   return (
     <div className="space-y-1">
@@ -863,13 +1034,43 @@ function FileTreeComponent({
         const fullPath = parentPath ? `${parentPath}/${file.name}` : file.name;
         const isExpanded = !!expandedDirs[fullPath];
         const isDirectory = file.type === 'directory';
+        const isSelected = selectedFiles.has(fullPath);
 
         return (
           <div key={fullPath}>
-            <div className="group flex items-center gap-2 p-2 hover:bg-gray-50 rounded transition-colors">
+            <div
+              className={`group flex items-center gap-2 p-2 rounded transition-colors ${
+                isSelected ? 'bg-indigo-50 border border-indigo-200' : 'hover:bg-gray-50'
+              }`}
+              onClick={() => isSelectionMode && onToggleSelection(fullPath)}
+            >
+              {/* Checkbox for selection mode */}
+              {isSelectionMode && (
+                <div
+                  className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 cursor-pointer transition-colors ${
+                    isSelected
+                      ? 'bg-indigo-600 border-indigo-600'
+                      : 'border-gray-300 hover:border-indigo-400'
+                  }`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onToggleSelection(fullPath);
+                  }}
+                >
+                  {isSelected && (
+                    <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                </div>
+              )}
+
               {isDirectory && (
                 <button
-                  onClick={() => onToggle(fullPath)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onToggle(fullPath);
+                  }}
                   className="text-gray-500 hover:text-gray-700"
                 >
                   <svg
@@ -901,28 +1102,36 @@ function FileTreeComponent({
                 )}
               </div>
 
-              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                {!isDirectory && (
+              {!isSelectionMode && (
+                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  {!isDirectory && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDownload(fullPath);
+                      }}
+                      className="p-1 text-blue-600 hover:bg-blue-50 rounded"
+                      title="Download"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                      </svg>
+                    </button>
+                  )}
                   <button
-                    onClick={() => onDownload(fullPath)}
-                    className="p-1 text-blue-600 hover:bg-blue-50 rounded"
-                    title="Download"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDelete(fullPath, file.type);
+                    }}
+                    className="p-1 text-red-600 hover:bg-red-50 rounded"
+                    title="Delete"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                     </svg>
                   </button>
-                )}
-                <button
-                  onClick={() => onDelete(fullPath, file.type)}
-                  className="p-1 text-red-600 hover:bg-red-50 rounded"
-                  title="Delete"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
-                </button>
-              </div>
+                </div>
+              )}
             </div>
 
             {isExpanded && expandedDirs[fullPath] && (
@@ -937,6 +1146,9 @@ function FileTreeComponent({
                   onCreateFolder={onCreateFolder}
                   onDrop={onDrop}
                   parentPath={fullPath}
+                  isSelectionMode={isSelectionMode}
+                  selectedFiles={selectedFiles}
+                  onToggleSelection={onToggleSelection}
                 />
               </div>
             )}

@@ -27,7 +27,7 @@ interface AgentOptions {
   max_turns?: number;
   allowed_tools?: string[];
   disallowed_tools?: string[];
-  permission_mode?: string;
+  permission_mode?: 'default' | 'acceptEdits' | 'bypassPermissions';
   env?: Record<string, string>;
 }
 
@@ -277,6 +277,7 @@ function CreateAgentDialog({
   const [model, setModel] = useState("claude-sonnet-4-20250514");
   const [maxTurns, setMaxTurns] = useState(10);
   const [allowedTools, setAllowedTools] = useState("Read,Write,Edit,Bash,Glob,Grep");
+  const [permissionMode, setPermissionMode] = useState<'default' | 'acceptEdits' | 'bypassPermissions'>('acceptEdits');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -287,6 +288,7 @@ function CreateAgentDialog({
       setModel(editingAgent.agent_options?.model || "claude-sonnet-4-20250514");
       setMaxTurns(editingAgent.agent_options?.max_turns || 10);
       setAllowedTools(editingAgent.agent_options?.allowed_tools?.join(",") || "Read,Write,Edit,Bash,Glob,Grep");
+      setPermissionMode(editingAgent.agent_options?.permission_mode || 'acceptEdits');
     } else {
       // Reset form for new agent
       setName("");
@@ -295,6 +297,7 @@ function CreateAgentDialog({
       setModel("claude-sonnet-4-20250514");
       setMaxTurns(10);
       setAllowedTools("Read,Write,Edit,Bash,Glob,Grep");
+      setPermissionMode('acceptEdits');
     }
   }, [editingAgent, isOpen]);
 
@@ -312,6 +315,7 @@ function CreateAgentDialog({
           model,
           max_turns: maxTurns,
           allowed_tools: allowedTools.split(",").map(t => t.trim()).filter(Boolean),
+          permission_mode: permissionMode,
         }
       });
       onClose();
@@ -435,6 +439,25 @@ function CreateAgentDialog({
               />
               <p className="text-xs text-gray-500 mt-1">
                 Available: Read, Write, Edit, Bash, Glob, Grep, WebSearch, WebFetch
+              </p>
+            </div>
+
+            {/* Permission Mode */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Permission Mode
+              </label>
+              <select
+                value={permissionMode}
+                onChange={(e) => setPermissionMode(e.target.value as 'default' | 'acceptEdits' | 'bypassPermissions')}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="acceptEdits">Accept Edits (Recommended)</option>
+                <option value="default">Default (Requires Approval)</option>
+                <option value="bypassPermissions">Bypass Permissions</option>
+              </select>
+              <p className="text-xs text-gray-500 mt-1">
+                Controls how the agent handles file operations. "Accept Edits" allows autonomous file changes.
               </p>
             </div>
           </div>
@@ -1036,6 +1059,25 @@ export default function AgentManager() {
     }
   }, [isLoggedIn, server, loadAgents]);
 
+  // Retry connection when offline
+  useEffect(() => {
+    if (!isLoggedIn || !server) return;
+
+    // Only set up retry interval if offline
+    if (serviceStatus !== 'offline') return;
+
+    const retryInterval = setInterval(async () => {
+      console.log('Retrying agent service connection...');
+      const svc = await getAgentManagerService();
+      if (svc) {
+        // Successfully reconnected, reload agents
+        loadAgents();
+      }
+    }, 5000); // Retry every 5 seconds
+
+    return () => clearInterval(retryInterval);
+  }, [isLoggedIn, server, serviceStatus, getAgentManagerService, loadAgents]);
+
   // Load sessions when agent is selected
   useEffect(() => {
     if (selectedAgent) {
@@ -1350,6 +1392,12 @@ export default function AgentManager() {
         // Enable artifact tools for session-based execution
         submitParams.enable_artifact_tools = true;
         submitParams.add_session_artifact_hint = true;
+        // Pass permission_mode from agent options (overrides backend default)
+        if (selectedAgent.agent_options?.permission_mode) {
+          submitParams.agent_options = {
+            permission_mode: selectedAgent.agent_options.permission_mode
+          };
+        }
       }
 
       // Submit task (returns immediately with session_id)
