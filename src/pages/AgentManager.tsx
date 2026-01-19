@@ -637,7 +637,7 @@ function AgentInfoPanel({
             </div>
           </div>
 
-          {/* Right: Session Controls */}
+          {/* Right: Session Controls - Always visible */}
           <div className="flex items-center gap-2">
             {/* Session Mode Toggle */}
             <label className="flex items-center gap-1.5 cursor-pointer px-2 py-1 bg-white rounded border border-gray-200">
@@ -655,55 +655,53 @@ function AgentInfoPanel({
               <span className={`text-xs ${isStatefulMode ? 'font-medium text-indigo-700' : 'text-gray-400'}`}>Stateful</span>
             </label>
 
-            {/* Session Selector (only when stateful) */}
-            {isStatefulMode && (
+            {/* Session Selector - Always visible */}
+            <select
+              value={selectedSession?.session_id || ""}
+              onChange={(e) => {
+                const session = sessions.find(s => s.session_id === e.target.value);
+                onSessionSelect(session || null);
+              }}
+              className={`px-2 py-1 text-xs border rounded focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white max-w-[200px] ${
+                isStatefulMode ? 'border-indigo-300' : 'border-gray-300'
+              }`}
+            >
+              <option value="">{isStatefulMode ? 'New Session' : 'Select Session...'}</option>
+              {sessions.map(session => (
+                <option key={session.session_id} value={session.session_id}>
+                  {session.name}
+                </option>
+              ))}
+            </select>
+            <button
+              onClick={onCreateSession}
+              className="p-1.5 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors"
+              title="Create New Session"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+            </button>
+            {selectedSession && (
               <>
-                <select
-                  value={selectedSession?.session_id || ""}
-                  onChange={(e) => {
-                    const session = sessions.find(s => s.session_id === e.target.value);
-                    onSessionSelect(session || null);
-                  }}
-                  className="px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white max-w-[200px]"
-                >
-                  <option value="">New Session</option>
-                  {sessions.map(session => (
-                    <option key={session.session_id} value={session.session_id}>
-                      {session.name}
-                    </option>
-                  ))}
-                </select>
                 <button
-                  onClick={onCreateSession}
-                  className="p-1.5 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors"
-                  title="Create New Session"
+                  onClick={() => setShowArtifactDialog(true)}
+                  className="p-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                  title="Manage Session Files"
                 >
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
                   </svg>
                 </button>
-                {selectedSession && (
-                  <>
-                    <button
-                      onClick={() => setShowArtifactDialog(true)}
-                      className="p-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-                      title="Manage Session Files"
-                    >
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-                      </svg>
-                    </button>
-                    <button
-                      onClick={() => onDeleteSession(selectedSession.session_id)}
-                      className="p-1.5 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
-                      title="Delete Session"
-                    >
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
-                  </>
-                )}
+                <button
+                  onClick={() => onDeleteSession(selectedSession.session_id)}
+                  className="p-1.5 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+                  title="Delete Session"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </button>
               </>
             )}
           </div>
@@ -1599,6 +1597,10 @@ export default function AgentManager() {
             onSessionSelect={async (session) => {
               setSelectedSession(session);
               if (session) {
+                // Automatically switch to stateful mode when a session is selected
+                if (!isStatefulMode) {
+                  setIsStatefulMode(true);
+                }
                 // Load conversation history (includes both saved turns and live events)
                 const hasOngoingTask = await loadConversationHistory(session.session_id);
 
@@ -1630,6 +1632,10 @@ export default function AgentManager() {
                 if (newSession) {
                   setSelectedSession(newSession);
                   setLogs([]);
+                  // Automatically switch to stateful mode when creating a session
+                  if (!isStatefulMode) {
+                    setIsStatefulMode(true);
+                  }
                 }
               }
             }}
