@@ -1,0 +1,285 @@
+{
+  "nbformat": 4,
+  "nbformat_minor": 5,
+  "metadata": {
+    "modified": "2026-01-19T18:01:21.185Z",
+    "kernelspec": {
+      "name": "python3",
+      "display_name": "Python 3"
+    },
+    "language_info": {
+      "name": "python",
+      "version": "3.9"
+    },
+    "title": "New Chat",
+    "created": "2026-01-19T17:56:11.138Z",
+    "filePath": "Untitled_Chat_2026-01-19T17-56-11-138Z.ipynb",
+    "projectId": "in-browser",
+    "agentArtifact": {
+      "id": "",
+      "name": "New Agent",
+      "description": "A new agent created from chat",
+      "version": "0.1.0",
+      "manifest": {
+        "name": "New Agent",
+        "description": "A new agent created from chat",
+        "version": "0.1.0",
+        "license": "CC-BY-4.0",
+        "welcomeMessage": "Hi, how can I help you today?",
+        "type": "agent",
+        "created_at": "2026-01-19T17:56:11.138Z"
+      }
+    }
+  },
+  "cells": [
+    {
+      "id": "9b81b2c2-eee5-4fd7-ba01-c89c854a08dd",
+      "type": "code",
+      "content": "import micropip\nawait micropip.install([\n    'pandas',\n    'matplotlib',\n    'python-dotenv',\n    'httpx',\n    'hypha-rpc'\n])",
+      "executionState": "success",
+      "role": "user",
+      "metadata": {
+        "collapsed": false,
+        "trusted": true,
+        "isNew": true,
+        "isEditing": false,
+        "isCodeVisible": true,
+        "isOutputVisible": true,
+        "userModified": true
+      },
+      "executionCount": 5
+    },
+    {
+      "id": "7036839e-1576-4c2d-bf59-5f19ab4ba37f",
+      "type": "code",
+      "content": "API_TOKEN = os.getenv('HYPHA_TOKEN')",
+      "executionState": "success",
+      "role": "user",
+      "metadata": {
+        "collapsed": false,
+        "trusted": true,
+        "isNew": true,
+        "isEditing": false,
+        "isCodeVisible": true,
+        "isOutputVisible": true,
+        "userModified": true
+      },
+      "executionCount": 6
+    },
+    {
+      "id": "95937665-b397-47e2-85bc-0db7f1ff0931",
+      "type": "code",
+      "content": "from hypha_rpc import connect_to_server\n\nserver = await connect_to_server(\n    server_url='https://hypha.aicell.io',\n    token=API_TOKEN\n)\n\nartifact_manager = await server.get_service('public/artifact-manager')",
+      "executionState": "success",
+      "role": "user",
+      "metadata": {
+        "collapsed": false,
+        "trusted": true,
+        "isNew": false,
+        "isEditing": false,
+        "isCodeVisible": true,
+        "isOutputVisible": true,
+        "userModified": true
+      },
+      "executionCount": 7
+    },
+    {
+      "id": "ee696a41-7506-4fca-9bd2-a2e100c950e8",
+      "type": "code",
+      "content": "DATASETS = {\n    'bindingdb': '24agents-science/dataset-bindingdb-all-202409',\n    'repurposing_smiles': '24agents-science/dataset-broad-repurposing-hub-molecule-with-smiles',\n    'repurposing_meta': '24agents-science/dataset-broad-repurposing-hub-phase-moa-target-info'\n}\n\nDATASETS",
+      "executionState": "success",
+      "role": "user",
+      "metadata": {
+        "collapsed": false,
+        "trusted": true,
+        "isNew": true,
+        "isEditing": false,
+        "isCodeVisible": true,
+        "isOutputVisible": true,
+        "userModified": true,
+        "hasOutput": true
+      },
+      "output": [
+        {
+          "type": "result",
+          "content": "{'bindingdb': '24agents-science/dataset-bindingdb-all-202409',\n 'repurposing_smiles': '24agents-science/dataset-broad-repurposing-hub-molecule-with-smiles',\n 'repurposing_meta': '24agents-science/dataset-broad-repurposing-hub-phase-moa-target-info'}",
+          "short_content": "{'bindingdb': '24agents-science/dataset-bindingdb-all-202409',\n 'repurposing_smiles': '24agents-science/dataset-broad-repurposing-hub-molecule-with-smiles',\n 'repurposing_meta': '24agents-science/dataset-broad-repurposing-hub-phase-moa-target-info'}",
+          "attrs": {
+            "className": "output-area "
+          }
+        }
+      ],
+      "executionCount": 8
+    },
+    {
+      "id": "38165024-399c-41ac-8f56-0934bf87c5c7",
+      "type": "code",
+      "content": "import pandas as pd\nimport httpx\nimport io\n\nasync def load_dataset(artifact_id):\n    files = await artifact_manager.list_files(artifact_id=artifact_id)\n    data_file = [f for f in files if f['type'] == 'file'][0]['name']\n    url = await artifact_manager.get_file(artifact_id=artifact_id, file_path=data_file)\n    async with httpx.AsyncClient() as client:\n        resp = await client.get(url)\n        resp.raise_for_status()\n    return pd.read_csv(pd.compat.StringIO(resp.text)) if data_file.endswith('.csv') or data_file.endswith('.tsv') else pd.read_parquet(pd.compat.BytesIO(resp.content))\n\nbindingdb = await load_dataset(DATASETS['bindingdb'])\nrepurposing_smiles = await load_dataset(DATASETS['repurposing_smiles'])\nrepurposing_meta = await load_dataset(DATASETS['repurposing_meta'])",
+      "executionState": "error",
+      "role": "user",
+      "metadata": {
+        "collapsed": false,
+        "trusted": true,
+        "isNew": true,
+        "isEditing": false,
+        "isCodeVisible": true,
+        "isOutputVisible": true,
+        "userModified": true,
+        "hasOutput": true
+      },
+      "output": [
+        {
+          "type": "stderr",
+          "content": "<pre class=\"output-multiline\"><class 'ImportError'>: Unable to find a usable engine; tried using: 'pyarrow', 'fastparquet'.<br>A suitable version of pyarrow or fastparquet is required for parquet support.<br>Trying to import the above resulted in these errors:<br> - Missing optional dependency 'pyarrow'. pyarrow is required for parquet support. Use pip or conda to install pyarrow.<br> - Missing optional dependency 'fastparquet'. fastparquet is required for parquet support. Use pip or conda to install fastparquet.<span style=\"color:#e74c3c\">---------------------------------------------------------------------------<span style=\"color:#000\"><span style=\"color:#e74c3c\">ImportError<span style=\"color:#000\">                               Traceback (most recent call last)<span style=\"color:#1abc9c\">Cell<span style=\"color:#000\"><span style=\"color:#1abc9c\"> <span style=\"color:#000\"><span style=\"color:#2ecc71\">In[20]<span style=\"color:#000\"><span style=\"color:#2ecc71\">, line 14<span style=\"color:#000\"><br><span style=\"color:#2ecc71\">     11<span style=\"color:#000\">         resp.raise_for_status()<br><span style=\"color:#2ecc71\">     12<span style=\"color:#000\">     <blink><b>return<span style=\"color:#000\"></span></b></blink></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span> pd.read_csv(pd.compat.StringIO(resp.text)) <blink><b>if<span style=\"color:#000\"></span></b></blink> data_file.endswith(<span style=\"color:#f1c40f\">'<span style=\"color:#000\"><span style=\"color:#f1c40f\">.csv<span style=\"color:#000\"><span style=\"color:#f1c40f\">'<span style=\"color:#000\">) <blink><b>or<span style=\"color:#000\"></span></b></blink></span></span></span></span></span></span> data_file.endswith(<span style=\"color:#f1c40f\">'<span style=\"color:#000\"><span style=\"color:#f1c40f\">.tsv<span style=\"color:#000\"><span style=\"color:#f1c40f\">'<span style=\"color:#000\">) <blink><b>else<span style=\"color:#000\"></span></b></blink></span></span></span></span></span></span> pd.read_parquet(io.BytesIO(resp.content))<br><span style=\"color:#2ecc71\">---> <span style=\"color:#000\"><span style=\"color:#2ecc71\">14<span style=\"color:#000\"> bindingdb = <blink><b>await<span style=\"color:#000\"></span></b></blink></span></span></span></span> load_dataset(DATASETS[<span style=\"color:#f1c40f\">'<span style=\"color:#000\"><span style=\"color:#f1c40f\">bindingdb<span style=\"color:#000\"><span style=\"color:#f1c40f\">'<span style=\"color:#000\">])<br><span style=\"color:#2ecc71\">     15<span style=\"color:#000\"> repurposing_smiles = <blink><b>await<span style=\"color:#000\"></span></b></blink></span></span></span></span></span></span></span></span> load_dataset(DATASETS[<span style=\"color:#f1c40f\">'<span style=\"color:#000\"><span style=\"color:#f1c40f\">repurposing_smiles<span style=\"color:#000\"><span style=\"color:#f1c40f\">'<span style=\"color:#000\">])<br><span style=\"color:#2ecc71\">     16<span style=\"color:#000\"> repurposing_meta = <blink><b>await<span style=\"color:#000\"></span></b></blink></span></span></span></span></span></span></span></span> load_dataset(DATASETS[<span style=\"color:#f1c40f\">'<span style=\"color:#000\"><span style=\"color:#f1c40f\">repurposing_meta<span style=\"color:#000\"><span style=\"color:#f1c40f\">'<span style=\"color:#000\">])<br><span style=\"color:#1abc9c\">Cell<span style=\"color:#000\"><span style=\"color:#1abc9c\"> <span style=\"color:#000\"><span style=\"color:#2ecc71\">In[20]<span style=\"color:#000\"><span style=\"color:#2ecc71\">, line 12<span style=\"color:#000\">, in <span style=\"color:#1abc9c\">load_dataset<span style=\"color:#000\"><span style=\"color:#3498db\">(artifact_id)<span style=\"color:#000\"><br><span style=\"color:#2ecc71\">     10<span style=\"color:#000\">     resp = <blink><b>await<span style=\"color:#000\"></span></b></blink></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span> client.get(url)<br><span style=\"color:#2ecc71\">     11<span style=\"color:#000\">     resp.raise_for_status()<br><span style=\"color:#2ecc71\">---> <span style=\"color:#000\"><span style=\"color:#2ecc71\">12<span style=\"color:#000\"> <blink><b>return<span style=\"color:#000\"></span></b></blink></span></span></span></span></span></span> pd.read_csv(pd.compat.StringIO(resp.text)) <blink><b>if<span style=\"color:#000\"></span></b></blink> data_file.endswith(<span style=\"color:#f1c40f\">'<span style=\"color:#000\"><span style=\"color:#f1c40f\">.csv<span style=\"color:#000\"><span style=\"color:#f1c40f\">'<span style=\"color:#000\">) <blink><b>or<span style=\"color:#000\"></span></b></blink></span></span></span></span></span></span> data_file.endswith(<span style=\"color:#f1c40f\">'<span style=\"color:#000\"><span style=\"color:#f1c40f\">.tsv<span style=\"color:#000\"><span style=\"color:#f1c40f\">'<span style=\"color:#000\">) <blink><b>else<span style=\"color:#000\"></span></b></blink></span></span></span></span></span></span> <span style=\"background-color:#f1c40f\">pd<span style=\"background-color:#FFF\"><span style=\"background-color:#f1c40f\">.<span style=\"background-color:#FFF\"><span style=\"background-color:#f1c40f\">read_parquet<span style=\"background-color:#FFF\"><span style=\"background-color:#f1c40f\">(<span style=\"background-color:#FFF\"><span style=\"background-color:#f1c40f\">io<span style=\"background-color:#FFF\"><span style=\"background-color:#f1c40f\">.<span style=\"background-color:#FFF\"><span style=\"background-color:#f1c40f\">BytesIO<span style=\"background-color:#FFF\"><span style=\"background-color:#f1c40f\">(<span style=\"background-color:#FFF\"><span style=\"background-color:#f1c40f\">resp<span style=\"background-color:#FFF\"><span style=\"background-color:#f1c40f\">.<span style=\"background-color:#FFF\"><span style=\"background-color:#f1c40f\">content<span style=\"background-color:#FFF\"><span style=\"background-color:#f1c40f\">)<span style=\"background-color:#FFF\"><span style=\"background-color:#f1c40f\">)<span style=\"background-color:#FFF\"><br><span style=\"color:#1abc9c\">File <span style=\"color:#000\"><span style=\"color:#2ecc71\">/lib/python3.13/site-packages/pandas/io/parquet.py:653<span style=\"color:#000\">, in <span style=\"color:#1abc9c\">read_parquet<span style=\"color:#000\"><span style=\"color:#3498db\">(path, engine, columns, storage_options, use_nullable_dtypes, dtype_backend, filesystem, filters, **kwargs)<span style=\"color:#000\"><br><span style=\"color:#2ecc71\">    500<span style=\"color:#000\"> <span style=\"color:#af00ff\">@doc<span style=\"color:#000\">(storage_options=_shared_docs[<span style=\"color:#f1c40f\">\"<span style=\"color:#000\"><span style=\"color:#f1c40f\">storage_options<span style=\"color:#000\"><span style=\"color:#f1c40f\">\"<span style=\"color:#000\">])<br><span style=\"color:#2ecc71\">    501<span style=\"color:#000\"> <blink><b>def<span style=\"color:#000\"></span></b></blink></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span style=\"color:#bcbcbc\"> <span style=\"color:#000\"><span style=\"color:#3498db\">read_parquet<span style=\"color:#000\">(<br><span style=\"color:#2ecc71\">    502<span style=\"color:#000\">     path: FilePath | ReadBuffer[<span style=\"color:#008700\">bytes<span style=\"color:#000\">],<br><span style=\"color:#2ecc71\">   (...)<span style=\"color:#000\"><span style=\"color:#2ecc71\">    510<span style=\"color:#000\">     **kwargs,<br><span style=\"color:#2ecc71\">    511<span style=\"color:#000\"> ) -> DataFrame:<br><span style=\"color:#2ecc71\">    512<span style=\"color:#000\"> <span style=\"color:#bcbcbc\">    <span style=\"color:#000\"><span style=\"color:#f1c40f\"><i>\"\"\"<span style=\"color:#000\"></span></i></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><br><span style=\"color:#2ecc71\">    513<span style=\"color:#000\"> <span style=\"color:#f1c40f\"><i>    Load a parquet object from the file path, returning a DataFrame.<span style=\"color:#000\"></span></i></span></span></span><br><span style=\"color:#2ecc71\">    514<span style=\"color:#000\"> <br><span style=\"color:#2ecc71\">   (...)<span style=\"color:#000\"><span style=\"color:#2ecc71\">    650<span style=\"color:#000\"> <span style=\"color:#f1c40f\"><i>    1    4    9<span style=\"color:#000\"></span></i></span></span></span></span></span></span></span><br><span style=\"color:#2ecc71\">    651<span style=\"color:#000\"> <span style=\"color:#f1c40f\"><i>    \"\"\"<span style=\"color:#000\"></span></i></span></span></span><br><span style=\"color:#2ecc71\">--> <span style=\"color:#000\"><span style=\"color:#2ecc71\">653<span style=\"color:#000\">     impl = <span style=\"background-color:#f1c40f\">get_engine<span style=\"background-color:#FFF\"><span style=\"background-color:#f1c40f\">(<span style=\"background-color:#FFF\"><span style=\"background-color:#f1c40f\">engine<span style=\"background-color:#FFF\"><span style=\"background-color:#f1c40f\">)<span style=\"background-color:#FFF\"><br><span style=\"color:#2ecc71\">    655<span style=\"color:#000\">     <blink><b>if<span style=\"color:#000\"></span></b></blink></span></span></span></span></span></span></span></span></span></span></span></span></span></span> use_nullable_dtypes <blink><b>is<span style=\"color:#000\"></span></b></blink> <blink><b>not<span style=\"color:#000\"></span></b></blink> lib.no_default:<br><span style=\"color:#2ecc71\">    656<span style=\"color:#000\">         msg = (<br><span style=\"color:#2ecc71\">    657<span style=\"color:#000\">             <span style=\"color:#f1c40f\">\"<span style=\"color:#000\"><span style=\"color:#f1c40f\">The argument <span style=\"color:#000\"><span style=\"color:#f1c40f\">'<span style=\"color:#000\"><span style=\"color:#f1c40f\">use_nullable_dtypes<span style=\"color:#000\"><span style=\"color:#f1c40f\">'<span style=\"color:#000\"><span style=\"color:#f1c40f\"> is deprecated and will be removed <span style=\"color:#000\"><span style=\"color:#f1c40f\">\"<span style=\"color:#000\"><br><span style=\"color:#2ecc71\">    658<span style=\"color:#000\">             <span style=\"color:#f1c40f\">\"<span style=\"color:#000\"><span style=\"color:#f1c40f\">in a future version.<span style=\"color:#000\"><span style=\"color:#f1c40f\">\"<span style=\"color:#000\"><br><span style=\"color:#2ecc71\">    659<span style=\"color:#000\">         )<br><span style=\"color:#1abc9c\">File <span style=\"color:#000\"><span style=\"color:#2ecc71\">/lib/python3.13/site-packages/pandas/io/parquet.py:68<span style=\"color:#000\">, in <span style=\"color:#1abc9c\">get_engine<span style=\"color:#000\"><span style=\"color:#3498db\">(engine)<span style=\"color:#000\"><br><span style=\"color:#2ecc71\">     65<span style=\"color:#000\">         <blink><b>except<span style=\"color:#000\"></span></b></blink></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span> <blink><b>ImportError<span style=\"color:#000\"></span></b></blink> <blink><b>as<span style=\"color:#000\"></span></b></blink> err:<br><span style=\"color:#2ecc71\">     66<span style=\"color:#000\">             error_msgs += <span style=\"color:#f1c40f\">\"<span style=\"color:#000\"><blink><b>\\n<span style=\"color:#000\"></span></b></blink></span></span></span></span><span style=\"color:#f1c40f\"> - <span style=\"color:#000\"><span style=\"color:#f1c40f\">\"<span style=\"color:#000\"> + <span style=\"color:#008700\">str<span style=\"color:#000\">(err)<br><span style=\"color:#2ecc71\">---> <span style=\"color:#000\"><span style=\"color:#2ecc71\">68<span style=\"color:#000\">     <blink><b>raise<span style=\"color:#000\"></span></b></blink></span></span></span></span></span></span></span></span></span></span> <blink><b>ImportError<span style=\"color:#000\"></span></b></blink>(<br><span style=\"color:#2ecc71\">     69<span style=\"color:#000\">         <span style=\"color:#f1c40f\">\"<span style=\"color:#000\"><span style=\"color:#f1c40f\">Unable to find a usable engine; <span style=\"color:#000\"><span style=\"color:#f1c40f\">\"<span style=\"color:#000\"><br><span style=\"color:#2ecc71\">     70<span style=\"color:#000\">         <span style=\"color:#f1c40f\">\"<span style=\"color:#000\"><span style=\"color:#f1c40f\">tried using: <span style=\"color:#000\"><span style=\"color:#f1c40f\">'<span style=\"color:#000\"><span style=\"color:#f1c40f\">pyarrow<span style=\"color:#000\"><span style=\"color:#f1c40f\">'<span style=\"color:#000\"><span style=\"color:#f1c40f\">, <span style=\"color:#000\"><span style=\"color:#f1c40f\">'<span style=\"color:#000\"><span style=\"color:#f1c40f\">fastparquet<span style=\"color:#000\"><span style=\"color:#f1c40f\">'<span style=\"color:#000\"><span style=\"color:#f1c40f\">.<span style=\"color:#000\"><blink><b>\\n<span style=\"color:#000\"></span></b></blink></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span style=\"color:#f1c40f\">\"<span style=\"color:#000\"><br><span style=\"color:#2ecc71\">     71<span style=\"color:#000\">         <span style=\"color:#f1c40f\">\"<span style=\"color:#000\"><span style=\"color:#f1c40f\">A suitable version of <span style=\"color:#000\"><span style=\"color:#f1c40f\">\"<span style=\"color:#000\"><br><span style=\"color:#2ecc71\">     72<span style=\"color:#000\">         <span style=\"color:#f1c40f\">\"<span style=\"color:#000\"><span style=\"color:#f1c40f\">pyarrow or fastparquet is required for parquet <span style=\"color:#000\"><span style=\"color:#f1c40f\">\"<span style=\"color:#000\"><br><span style=\"color:#2ecc71\">     73<span style=\"color:#000\">         <span style=\"color:#f1c40f\">\"<span style=\"color:#000\"><span style=\"color:#f1c40f\">support.<span style=\"color:#000\"><blink><b>\\n<span style=\"color:#000\"></span></b></blink></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span style=\"color:#f1c40f\">\"<span style=\"color:#000\"><br><span style=\"color:#2ecc71\">     74<span style=\"color:#000\">         <span style=\"color:#f1c40f\">\"<span style=\"color:#000\"><span style=\"color:#f1c40f\">Trying to import the above resulted in these errors:<span style=\"color:#000\"><span style=\"color:#f1c40f\">\"<span style=\"color:#000\"><br><span style=\"color:#2ecc71\">     75<span style=\"color:#000\">         <span style=\"color:#f1c40f\">f<span style=\"color:#000\"><span style=\"color:#f1c40f\">\"<span style=\"color:#000\"><blink><b>{<span style=\"color:#000\"></span></b></blink></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span>error_msgs<blink><b>}<span style=\"color:#000\"></span></b></blink><span style=\"color:#f1c40f\">\"<span style=\"color:#000\"><br><span style=\"color:#2ecc71\">     76<span style=\"color:#000\">     )<br><span style=\"color:#2ecc71\">     78<span style=\"color:#000\"> <blink><b>if<span style=\"color:#000\"></span></b></blink></span></span></span></span></span></span> engine == <span style=\"color:#f1c40f\">\"<span style=\"color:#000\"><span style=\"color:#f1c40f\">pyarrow<span style=\"color:#000\"><span style=\"color:#f1c40f\">\"<span style=\"color:#000\">:<br><span style=\"color:#2ecc71\">     79<span style=\"color:#000\">     <blink><b>return<span style=\"color:#000\"></span></b></blink></span></span></span></span></span></span></span></span> PyArrowImpl()<br><span style=\"color:#e74c3c\">ImportError<span style=\"color:#000\">: Unable to find a usable engine; tried using: 'pyarrow', 'fastparquet'.<br>A suitable version of pyarrow or fastparquet is required for parquet support.<br>Trying to import the above resulted in these errors:<br> - Missing optional dependency 'pyarrow'. pyarrow is required for parquet support. Use pip or conda to install pyarrow.<br> - Missing optional dependency 'fastparquet'. fastparquet is required for parquet support. Use pip or conda to install fastparquet.</span></span></pre>",
+          "attrs": {
+            "className": "output-area error-output",
+            "isProcessedAnsi": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "f1f9f58a-7379-4f3c-b021-275c6d8e1d75",
+      "type": "code",
+      "content": "TARGET_NAME = 'EGFR'\n\ntarget_hits = bindingdb[bindingdb['Target Name'].str.contains(TARGET_NAME, na=False)]\ntarget_hits = target_hits.dropna(subset=['Kd (nM)'])",
+      "executionState": "error",
+      "role": "user",
+      "metadata": {
+        "collapsed": false,
+        "trusted": true,
+        "isNew": true,
+        "isEditing": false,
+        "isCodeVisible": true,
+        "isOutputVisible": true,
+        "userModified": true,
+        "hasOutput": true
+      },
+      "output": [
+        {
+          "type": "stderr",
+          "content": "<pre class=\"output-multiline\"><class 'NameError'>: name 'bindingdb' is not defined<span style=\"color:#e74c3c\">---------------------------------------------------------------------------<span style=\"color:#000\"><span style=\"color:#e74c3c\">NameError<span style=\"color:#000\">                                 Traceback (most recent call last)<span style=\"color:#1abc9c\">Cell<span style=\"color:#000\"><span style=\"color:#1abc9c\"> <span style=\"color:#000\"><span style=\"color:#2ecc71\">In[15]<span style=\"color:#000\"><span style=\"color:#2ecc71\">, line 3<span style=\"color:#000\"><br><span style=\"color:#2ecc71\">      1<span style=\"color:#000\"> TARGET_NAME = <span style=\"color:#f1c40f\">'<span style=\"color:#000\"><span style=\"color:#f1c40f\">EGFR<span style=\"color:#000\"><span style=\"color:#f1c40f\">'<span style=\"color:#000\"><br><span style=\"color:#2ecc71\">----> <span style=\"color:#000\"><span style=\"color:#2ecc71\">3<span style=\"color:#000\"> target_hits = <span style=\"background-color:#f1c40f\">bindingdb<span style=\"background-color:#FFF\">[bindingdb[<span style=\"color:#f1c40f\">'<span style=\"color:#000\"><span style=\"color:#f1c40f\">Target Name<span style=\"color:#000\"><span style=\"color:#f1c40f\">'<span style=\"color:#000\">].str.contains(TARGET_NAME, na=<blink><b>False<span style=\"color:#000\"></span></b></blink></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span>)]<br><span style=\"color:#2ecc71\">      4<span style=\"color:#000\"> target_hits = target_hits.dropna(subset=[<span style=\"color:#f1c40f\">'<span style=\"color:#000\"><span style=\"color:#f1c40f\">Kd (nM)<span style=\"color:#000\"><span style=\"color:#f1c40f\">'<span style=\"color:#000\">])<br><span style=\"color:#e74c3c\">NameError<span style=\"color:#000\">: name 'bindingdb' is not defined</span></span></span></span></span></span></span></span></span></span></pre>",
+          "attrs": {
+            "className": "output-area error-output",
+            "isProcessedAnsi": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "c7acd186-f6d9-4c33-9e4c-bcec5308a39a",
+      "type": "code",
+      "content": "merged = target_hits.merge(\n    repurposing_smiles,\n    left_on='Ligand Name',\n    right_on='compound_name',\n    how='left'\n).merge(\n    repurposing_meta,\n    on='compound_id',\n    how='left'\n)",
+      "executionState": "error",
+      "role": "user",
+      "metadata": {
+        "collapsed": false,
+        "trusted": true,
+        "isNew": true,
+        "isEditing": false,
+        "isCodeVisible": true,
+        "isOutputVisible": true,
+        "userModified": true,
+        "hasOutput": true
+      },
+      "output": [
+        {
+          "type": "stderr",
+          "content": "<pre class=\"output-multiline\"><class 'NameError'>: name 'target_hits' is not defined<span style=\"color:#e74c3c\">---------------------------------------------------------------------------<span style=\"color:#000\"><span style=\"color:#e74c3c\">NameError<span style=\"color:#000\">                                 Traceback (most recent call last)<span style=\"color:#1abc9c\">Cell<span style=\"color:#000\"><span style=\"color:#1abc9c\"> <span style=\"color:#000\"><span style=\"color:#2ecc71\">In[16]<span style=\"color:#000\"><span style=\"color:#2ecc71\">, line 1<span style=\"color:#000\"><br><span style=\"color:#2ecc71\">----> <span style=\"color:#000\"><span style=\"color:#2ecc71\">1<span style=\"color:#000\"> merged = <span style=\"background-color:#f1c40f\">target_hits<span style=\"background-color:#FFF\">.merge(<br><span style=\"color:#2ecc71\">      2<span style=\"color:#000\">     repurposing_smiles,<br><span style=\"color:#2ecc71\">      3<span style=\"color:#000\">     left_on=<span style=\"color:#f1c40f\">'<span style=\"color:#000\"><span style=\"color:#f1c40f\">Ligand Name<span style=\"color:#000\"><span style=\"color:#f1c40f\">'<span style=\"color:#000\">,<br><span style=\"color:#2ecc71\">      4<span style=\"color:#000\">     right_on=<span style=\"color:#f1c40f\">'<span style=\"color:#000\"><span style=\"color:#f1c40f\">compound_name<span style=\"color:#000\"><span style=\"color:#f1c40f\">'<span style=\"color:#000\">,<br><span style=\"color:#2ecc71\">      5<span style=\"color:#000\">     how=<span style=\"color:#f1c40f\">'<span style=\"color:#000\"><span style=\"color:#f1c40f\">left<span style=\"color:#000\"><span style=\"color:#f1c40f\">'<span style=\"color:#000\"><br><span style=\"color:#2ecc71\">      6<span style=\"color:#000\"> ).merge(<br><span style=\"color:#2ecc71\">      7<span style=\"color:#000\">     repurposing_meta,<br><span style=\"color:#2ecc71\">      8<span style=\"color:#000\">     on=<span style=\"color:#f1c40f\">'<span style=\"color:#000\"><span style=\"color:#f1c40f\">compound_id<span style=\"color:#000\"><span style=\"color:#f1c40f\">'<span style=\"color:#000\">,<br><span style=\"color:#2ecc71\">      9<span style=\"color:#000\">     how=<span style=\"color:#f1c40f\">'<span style=\"color:#000\"><span style=\"color:#f1c40f\">left<span style=\"color:#000\"><span style=\"color:#f1c40f\">'<span style=\"color:#000\"><br><span style=\"color:#2ecc71\">     10<span style=\"color:#000\"> )<br><span style=\"color:#e74c3c\">NameError<span style=\"color:#000\">: name 'target_hits' is not defined</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></pre>",
+          "attrs": {
+            "className": "output-area error-output",
+            "isProcessedAnsi": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "21be9c78-3d26-4975-9c27-19368eb9be66",
+      "type": "code",
+      "content": "def phase_score(phase):\n    mapping = {\n        'Approved': 3,\n        'Phase 3': 2,\n        'Phase 2': 1.5,\n        'Phase 1': 1,\n    }\n    return mapping.get(str(phase), 0.5)\n\nmerged['affinity_score'] = -merged['Kd (nM)'].apply(lambda x: float(x))\nmerged['phase_score'] = merged['clinical_phase'].apply(phase_score)\nmerged['total_score'] = merged['affinity_score'] * merged['phase_score']\n\nranked = merged.sort_values('total_score', ascending=False)",
+      "executionState": "error",
+      "role": "user",
+      "metadata": {
+        "collapsed": false,
+        "trusted": true,
+        "isNew": true,
+        "isEditing": false,
+        "isCodeVisible": true,
+        "isOutputVisible": true,
+        "userModified": true,
+        "hasOutput": true
+      },
+      "output": [
+        {
+          "type": "stderr",
+          "content": "<pre class=\"output-multiline\"><class 'NameError'>: name 'merged' is not defined<span style=\"color:#e74c3c\">---------------------------------------------------------------------------<span style=\"color:#000\"><span style=\"color:#e74c3c\">NameError<span style=\"color:#000\">                                 Traceback (most recent call last)<span style=\"color:#1abc9c\">Cell<span style=\"color:#000\"><span style=\"color:#1abc9c\"> <span style=\"color:#000\"><span style=\"color:#2ecc71\">In[17]<span style=\"color:#000\"><span style=\"color:#2ecc71\">, line 10<span style=\"color:#000\"><br><span style=\"color:#2ecc71\">      2<span style=\"color:#000\">     mapping = {<br><span style=\"color:#2ecc71\">      3<span style=\"color:#000\">         <span style=\"color:#f1c40f\">'<span style=\"color:#000\"><span style=\"color:#f1c40f\">Approved<span style=\"color:#000\"><span style=\"color:#f1c40f\">'<span style=\"color:#000\">: <span style=\"color:#2ecc71\">3<span style=\"color:#000\">,<br><span style=\"color:#2ecc71\">      4<span style=\"color:#000\">         <span style=\"color:#f1c40f\">'<span style=\"color:#000\"><span style=\"color:#f1c40f\">Phase 3<span style=\"color:#000\"><span style=\"color:#f1c40f\">'<span style=\"color:#000\">: <span style=\"color:#2ecc71\">2<span style=\"color:#000\">,<br><span style=\"color:#2ecc71\">      5<span style=\"color:#000\">         <span style=\"color:#f1c40f\">'<span style=\"color:#000\"><span style=\"color:#f1c40f\">Phase 2<span style=\"color:#000\"><span style=\"color:#f1c40f\">'<span style=\"color:#000\">: <span style=\"color:#2ecc71\">1.5<span style=\"color:#000\">,<br><span style=\"color:#2ecc71\">      6<span style=\"color:#000\">         <span style=\"color:#f1c40f\">'<span style=\"color:#000\"><span style=\"color:#f1c40f\">Phase 1<span style=\"color:#000\"><span style=\"color:#f1c40f\">'<span style=\"color:#000\">: <span style=\"color:#2ecc71\">1<span style=\"color:#000\">,<br><span style=\"color:#2ecc71\">      7<span style=\"color:#000\">     }<br><span style=\"color:#2ecc71\">      8<span style=\"color:#000\">     <blink><b>return<span style=\"color:#000\"></span></b></blink></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span> mapping.get(<span style=\"color:#008700\">str<span style=\"color:#000\">(phase), <span style=\"color:#2ecc71\">0.5<span style=\"color:#000\">)<br><span style=\"color:#2ecc71\">---> <span style=\"color:#000\"><span style=\"color:#2ecc71\">10<span style=\"color:#000\"> merged[<span style=\"color:#f1c40f\">'<span style=\"color:#000\"><span style=\"color:#f1c40f\">affinity_score<span style=\"color:#000\"><span style=\"color:#f1c40f\">'<span style=\"color:#000\">] = -<span style=\"background-color:#f1c40f\">merged<span style=\"background-color:#FFF\">[<span style=\"color:#f1c40f\">'<span style=\"color:#000\"><span style=\"color:#f1c40f\">Kd (nM)<span style=\"color:#000\"><span style=\"color:#f1c40f\">'<span style=\"color:#000\">].apply(<blink><b>lambda<span style=\"color:#000\"></span></b></blink></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span> x: <span style=\"color:#008700\">float<span style=\"color:#000\">(x))<br><span style=\"color:#2ecc71\">     11<span style=\"color:#000\"> merged[<span style=\"color:#f1c40f\">'<span style=\"color:#000\"><span style=\"color:#f1c40f\">phase_score<span style=\"color:#000\"><span style=\"color:#f1c40f\">'<span style=\"color:#000\">] = merged[<span style=\"color:#f1c40f\">'<span style=\"color:#000\"><span style=\"color:#f1c40f\">clinical_phase<span style=\"color:#000\"><span style=\"color:#f1c40f\">'<span style=\"color:#000\">].apply(phase_score)<br><span style=\"color:#2ecc71\">     12<span style=\"color:#000\"> merged[<span style=\"color:#f1c40f\">'<span style=\"color:#000\"><span style=\"color:#f1c40f\">total_score<span style=\"color:#000\"><span style=\"color:#f1c40f\">'<span style=\"color:#000\">] = merged[<span style=\"color:#f1c40f\">'<span style=\"color:#000\"><span style=\"color:#f1c40f\">affinity_score<span style=\"color:#000\"><span style=\"color:#f1c40f\">'<span style=\"color:#000\">] * merged[<span style=\"color:#f1c40f\">'<span style=\"color:#000\"><span style=\"color:#f1c40f\">phase_score<span style=\"color:#000\"><span style=\"color:#f1c40f\">'<span style=\"color:#000\">]<br><span style=\"color:#e74c3c\">NameError<span style=\"color:#000\">: name 'merged' is not defined</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></pre>",
+          "attrs": {
+            "className": "output-area error-output",
+            "isProcessedAnsi": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "9d48e4c5-ce60-47b1-8b6e-a6d0de81a641",
+      "type": "code",
+      "content": "ranked[[\n    'Ligand Name',\n    'Kd (nM)',\n    'clinical_phase',\n    'mechanism_of_action',\n    'total_score'\n]].head(10)",
+      "executionState": "error",
+      "role": "user",
+      "metadata": {
+        "collapsed": false,
+        "trusted": true,
+        "isNew": true,
+        "isEditing": false,
+        "isCodeVisible": true,
+        "isOutputVisible": true,
+        "userModified": true,
+        "hasOutput": true
+      },
+      "output": [
+        {
+          "type": "stderr",
+          "content": "<pre class=\"output-multiline\"><class 'NameError'>: name 'ranked' is not defined<span style=\"color:#e74c3c\">---------------------------------------------------------------------------<span style=\"color:#000\"><span style=\"color:#e74c3c\">NameError<span style=\"color:#000\">                                 Traceback (most recent call last)<span style=\"color:#1abc9c\">Cell<span style=\"color:#000\"><span style=\"color:#1abc9c\"> <span style=\"color:#000\"><span style=\"color:#2ecc71\">In[18]<span style=\"color:#000\"><span style=\"color:#2ecc71\">, line 1<span style=\"color:#000\"><br><span style=\"color:#2ecc71\">----> <span style=\"color:#000\"><span style=\"color:#2ecc71\">1<span style=\"color:#000\"> <span style=\"background-color:#f1c40f\">ranked<span style=\"background-color:#FFF\">[[<br><span style=\"color:#2ecc71\">      2<span style=\"color:#000\">     <span style=\"color:#f1c40f\">'<span style=\"color:#000\"><span style=\"color:#f1c40f\">Ligand Name<span style=\"color:#000\"><span style=\"color:#f1c40f\">'<span style=\"color:#000\">,<br><span style=\"color:#2ecc71\">      3<span style=\"color:#000\">     <span style=\"color:#f1c40f\">'<span style=\"color:#000\"><span style=\"color:#f1c40f\">Kd (nM)<span style=\"color:#000\"><span style=\"color:#f1c40f\">'<span style=\"color:#000\">,<br><span style=\"color:#2ecc71\">      4<span style=\"color:#000\">     <span style=\"color:#f1c40f\">'<span style=\"color:#000\"><span style=\"color:#f1c40f\">clinical_phase<span style=\"color:#000\"><span style=\"color:#f1c40f\">'<span style=\"color:#000\">,<br><span style=\"color:#2ecc71\">      5<span style=\"color:#000\">     <span style=\"color:#f1c40f\">'<span style=\"color:#000\"><span style=\"color:#f1c40f\">mechanism_of_action<span style=\"color:#000\"><span style=\"color:#f1c40f\">'<span style=\"color:#000\">,<br><span style=\"color:#2ecc71\">      6<span style=\"color:#000\">     <span style=\"color:#f1c40f\">'<span style=\"color:#000\"><span style=\"color:#f1c40f\">total_score<span style=\"color:#000\"><span style=\"color:#f1c40f\">'<span style=\"color:#000\"><br><span style=\"color:#2ecc71\">      7<span style=\"color:#000\"> ]].head(<span style=\"color:#2ecc71\">10<span style=\"color:#000\">)<br><span style=\"color:#e74c3c\">NameError<span style=\"color:#000\">: name 'ranked' is not defined</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></pre>",
+          "attrs": {
+            "className": "output-area error-output",
+            "isProcessedAnsi": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "b5492931-a65f-4d3e-99a0-ac8d5c2c5bcf",
+      "type": "code",
+      "content": "import matplotlib.pyplot as plt\n\nplt.figure(figsize=(6, 4))\nplt.scatter(-ranked['Kd (nM)'], ranked['phase_score'], alpha=0.5)\nplt.xlabel('Binding affinity (higher is better)')\nplt.ylabel('Clinical phase score')\nplt.title(f'Target: {TARGET_NAME}')\nplt.show()",
+      "executionState": "error",
+      "role": "user",
+      "metadata": {
+        "collapsed": false,
+        "trusted": true,
+        "isNew": true,
+        "isEditing": false,
+        "isCodeVisible": true,
+        "isOutputVisible": true,
+        "userModified": true,
+        "hasOutput": true
+      },
+      "output": [
+        {
+          "type": "stderr",
+          "content": "<pre class=\"output-multiline\"><class 'NameError'>: name 'ranked' is not defined<span style=\"color:#e74c3c\">---------------------------------------------------------------------------<span style=\"color:#000\"><span style=\"color:#e74c3c\">NameError<span style=\"color:#000\">                                 Traceback (most recent call last)<span style=\"color:#1abc9c\">Cell<span style=\"color:#000\"><span style=\"color:#1abc9c\"> <span style=\"color:#000\"><span style=\"color:#2ecc71\">In[19]<span style=\"color:#000\"><span style=\"color:#2ecc71\">, line 4<span style=\"color:#000\"><br><span style=\"color:#2ecc71\">      1<span style=\"color:#000\"> <blink><b>import<span style=\"color:#000\"></span></b></blink></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span style=\"color:#bcbcbc\"> <span style=\"color:#000\"><span style=\"color:#3498db\"><b>matplotlib<span style=\"color:#000\"></span></b></span></span></span><span style=\"color:#3498db\"><b>.<span style=\"color:#000\"></span></b></span><span style=\"color:#3498db\"><b>pyplot<span style=\"color:#000\"></span></b></span><span style=\"color:#bcbcbc\"> <span style=\"color:#000\"><blink><b>as<span style=\"color:#000\"></span></b></blink></span></span><span style=\"color:#bcbcbc\"> <span style=\"color:#000\"><span style=\"color:#3498db\"><b>plt<span style=\"color:#000\"></span></b></span></span></span><br><span style=\"color:#2ecc71\">      3<span style=\"color:#000\"> plt.figure(figsize=(<span style=\"color:#2ecc71\">6<span style=\"color:#000\">, <span style=\"color:#2ecc71\">4<span style=\"color:#000\">))<br><span style=\"color:#2ecc71\">----> <span style=\"color:#000\"><span style=\"color:#2ecc71\">4<span style=\"color:#000\"> plt.scatter(-<span style=\"background-color:#f1c40f\">ranked<span style=\"background-color:#FFF\">[<span style=\"color:#f1c40f\">'<span style=\"color:#000\"><span style=\"color:#f1c40f\">Kd (nM)<span style=\"color:#000\"><span style=\"color:#f1c40f\">'<span style=\"color:#000\">], ranked[<span style=\"color:#f1c40f\">'<span style=\"color:#000\"><span style=\"color:#f1c40f\">phase_score<span style=\"color:#000\"><span style=\"color:#f1c40f\">'<span style=\"color:#000\">], alpha=<span style=\"color:#2ecc71\">0.5<span style=\"color:#000\">)<br><span style=\"color:#2ecc71\">      5<span style=\"color:#000\"> plt.xlabel(<span style=\"color:#f1c40f\">'<span style=\"color:#000\"><span style=\"color:#f1c40f\">Binding affinity (higher is better)<span style=\"color:#000\"><span style=\"color:#f1c40f\">'<span style=\"color:#000\">)<br><span style=\"color:#2ecc71\">      6<span style=\"color:#000\"> plt.ylabel(<span style=\"color:#f1c40f\">'<span style=\"color:#000\"><span style=\"color:#f1c40f\">Clinical phase score<span style=\"color:#000\"><span style=\"color:#f1c40f\">'<span style=\"color:#000\">)<br><span style=\"color:#e74c3c\">NameError<span style=\"color:#000\">: name 'ranked' is not defined</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></pre>",
+          "attrs": {
+            "className": "output-area error-output",
+            "isProcessedAnsi": true
+          }
+        },
+        {
+          "type": "result",
+          "content": "<Figure size 600x400 with 0 Axes>",
+          "short_content": "<Figure size 600x400 with 0 Axes>",
+          "attrs": {
+            "className": "output-area "
+          }
+        }
+      ]
+    }
+  ]
+}
