@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { useHyphaStore } from "../store/hyphaStore";
 import SessionArtifactDialog from "../components/SessionArtifactDialog";
 
@@ -506,16 +506,12 @@ function AgentInfoPanel({
   taskInput,
   setTaskInput,
   onClearLogs,
-  sessions,
   selectedSession,
-  onSessionSelect,
-  onCreateSession,
-  onDeleteSession,
   isStatefulMode,
-  onToggleStatefulMode,
   isLoadingHistory,
   copiedAgentId,
-  setCopiedAgentId
+  setCopiedAgentId,
+  onOpenArtifactDialog
 }: {
   agent: AgentInfo;
   onEdit: () => void;
@@ -526,20 +522,15 @@ function AgentInfoPanel({
   taskInput: string;
   setTaskInput: (val: string) => void;
   onClearLogs: () => void;
-  sessions: SessionInfo[];
   selectedSession: SessionInfo | null;
-  onSessionSelect: (session: SessionInfo | null) => void;
-  onCreateSession: () => void;
-  onDeleteSession: (sessionId: string) => void;
   isStatefulMode: boolean;
-  onToggleStatefulMode: () => void;
   isLoadingHistory: boolean;
   copiedAgentId: boolean;
   setCopiedAgentId: (val: boolean) => void;
+  onOpenArtifactDialog: () => void;
 }) {
   const logContainerRef = useRef<HTMLDivElement>(null);
   const [expandedLogs, setExpandedLogs] = useState<Set<string>>(new Set());
-  const [showArtifactDialog, setShowArtifactDialog] = useState(false);
 
   // Auto-scroll logs to bottom
   useEffect(() => {
@@ -562,7 +553,7 @@ function AgentInfoPanel({
 
   return (
     <div className="flex flex-col h-full">
-      {/* Compact Agent Header - Horizontal Layout */}
+      {/* Compact Agent Header */}
       <div className="px-4 py-3 border-b border-gray-200 bg-gradient-to-r from-white to-indigo-50">
         <div className="flex items-center justify-between gap-4">
           {/* Left: Agent Info */}
@@ -573,7 +564,19 @@ function AgentInfoPanel({
               </svg>
             </div>
             <div className="min-w-0 flex-1">
-              <h1 className="text-lg font-bold text-gray-900 truncate">{agent.name}</h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-lg font-bold text-gray-900 truncate">{agent.name}</h1>
+                {/* Session/Mode Badge */}
+                {isStatefulMode && selectedSession ? (
+                  <span className="px-2 py-0.5 text-xs bg-emerald-100 text-emerald-700 rounded-full font-medium">
+                    {selectedSession.name}
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 text-xs bg-gray-100 text-gray-600 rounded-full font-medium">
+                    Stateless
+                  </span>
+                )}
+              </div>
               <div className="flex items-center gap-2">
                 <p className="text-xs text-gray-400 font-mono truncate">{agent.agent_id}</p>
                 <button
@@ -599,8 +602,36 @@ function AgentInfoPanel({
             </div>
           </div>
 
-          {/* Center-Left: Edit/Delete Agent Buttons */}
-          <div className="flex gap-1 border-r border-gray-300 pr-2">
+          {/* Center: Agent Settings (Horizontal) */}
+          <div className="hidden lg:flex items-center gap-3 text-xs">
+            <div className="flex items-center gap-1.5 px-2 py-1 bg-white rounded border border-gray-200">
+              <span className="text-gray-500">Model:</span>
+              <span className="font-medium text-gray-700">{agent.agent_options?.model?.split('-').slice(-2).join('-') || "Default"}</span>
+            </div>
+            <div className="flex items-center gap-1.5 px-2 py-1 bg-white rounded border border-gray-200">
+              <span className="text-gray-500">Turns:</span>
+              <span className="font-medium text-gray-700">{agent.agent_options?.max_turns || 10}</span>
+            </div>
+            <div className="flex items-center gap-1.5 px-2 py-1 bg-white rounded border border-gray-200">
+              <span className="text-gray-500">Tools:</span>
+              <span className="font-medium text-gray-700">{agent.agent_options?.allowed_tools?.length || 0}</span>
+            </div>
+          </div>
+
+          {/* Right: Action Buttons */}
+          <div className="flex items-center gap-1">
+            {/* Artifact Dialog Button (only for sessions) */}
+            {selectedSession && (
+              <button
+                onClick={onOpenArtifactDialog}
+                className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                title="Manage Session Files"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                </svg>
+              </button>
+            )}
             <button
               onClick={onEdit}
               className="p-1.5 text-gray-600 hover:bg-gray-100 rounded transition-colors"
@@ -619,91 +650,6 @@ function AgentInfoPanel({
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
               </svg>
             </button>
-          </div>
-
-          {/* Center: Agent Settings (Horizontal) */}
-          <div className="hidden lg:flex items-center gap-4 text-xs">
-            <div className="flex items-center gap-1.5 px-2 py-1 bg-white rounded border border-gray-200">
-              <span className="text-gray-500">Model:</span>
-              <span className="font-medium text-gray-700">{agent.agent_options?.model?.split('-').slice(-2).join('-') || "Default"}</span>
-            </div>
-            <div className="flex items-center gap-1.5 px-2 py-1 bg-white rounded border border-gray-200">
-              <span className="text-gray-500">Turns:</span>
-              <span className="font-medium text-gray-700">{agent.agent_options?.max_turns || 10}</span>
-            </div>
-            <div className="flex items-center gap-1.5 px-2 py-1 bg-white rounded border border-gray-200">
-              <span className="text-gray-500">Tools:</span>
-              <span className="font-medium text-gray-700">{agent.agent_options?.allowed_tools?.length || 0}</span>
-            </div>
-          </div>
-
-          {/* Right: Session Controls - Always visible */}
-          <div className="flex items-center gap-2">
-            {/* Session Mode Toggle */}
-            <label className="flex items-center gap-1.5 cursor-pointer px-2 py-1 bg-white rounded border border-gray-200">
-              <span className={`text-xs ${!isStatefulMode ? 'font-medium text-gray-700' : 'text-gray-400'}`}>Stateless</span>
-              <div className="relative">
-                <input
-                  type="checkbox"
-                  checked={isStatefulMode}
-                  onChange={onToggleStatefulMode}
-                  className="sr-only peer"
-                />
-                <div className="w-7 h-4 bg-gray-300 rounded-full peer peer-checked:bg-indigo-600 transition-colors"></div>
-                <div className="absolute left-0.5 top-0.5 bg-white w-3 h-3 rounded-full transition-transform peer-checked:translate-x-3"></div>
-              </div>
-              <span className={`text-xs ${isStatefulMode ? 'font-medium text-indigo-700' : 'text-gray-400'}`}>Stateful</span>
-            </label>
-
-            {/* Session Selector - Always visible */}
-            <select
-              value={selectedSession?.session_id || ""}
-              onChange={(e) => {
-                const session = sessions.find(s => s.session_id === e.target.value);
-                onSessionSelect(session || null);
-              }}
-              className={`px-2 py-1 text-xs border rounded focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white max-w-[200px] ${
-                isStatefulMode ? 'border-indigo-300' : 'border-gray-300'
-              }`}
-            >
-              <option value="">{isStatefulMode ? 'New Session' : 'Select Session...'}</option>
-              {sessions.map(session => (
-                <option key={session.session_id} value={session.session_id}>
-                  {session.name}
-                </option>
-              ))}
-            </select>
-            <button
-              onClick={onCreateSession}
-              className="p-1.5 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors"
-              title="Create New Session"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-            </button>
-            {selectedSession && (
-              <>
-                <button
-                  onClick={() => setShowArtifactDialog(true)}
-                  className="p-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-                  title="Manage Session Files"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-                  </svg>
-                </button>
-                <button
-                  onClick={() => onDeleteSession(selectedSession.session_id)}
-                  className="p-1.5 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
-                  title="Delete Session"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
-                </button>
-              </>
-            )}
           </div>
         </div>
       </div>
@@ -826,22 +772,12 @@ function AgentInfoPanel({
         </div>
       </div>
 
-      {/* Session Artifact Dialog */}
-      {selectedSession && (
-        <SessionArtifactDialog
-          sessionId={selectedSession.session_id}
-          sessionName={selectedSession.name}
-          isOpen={showArtifactDialog}
-          onClose={() => setShowArtifactDialog(false)}
-        />
-      )}
     </div>
   );
 }
 
 // Main Agent Manager Page
 export default function AgentManager() {
-  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { isLoggedIn, server, login } = useHyphaStore();
 
@@ -854,6 +790,7 @@ export default function AgentManager() {
   const [editingAgent, setEditingAgent] = useState<AgentInfo | null>(null);
   const [agentManagerService, setAgentManagerService] = useState<any>(null);
   const [serviceStatus, setServiceStatus] = useState<'connecting' | 'online' | 'offline'>('connecting');
+  const [expandedAgents, setExpandedAgents] = useState<Set<string>>(new Set());
 
   // Task execution state
   const [taskInput, setTaskInput] = useState("");
@@ -865,6 +802,10 @@ export default function AgentManager() {
   const [selectedSession, setSelectedSession] = useState<SessionInfo | null>(null);
   const [isStatefulMode, setIsStatefulMode] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [agentSessions, setAgentSessions] = useState<Record<string, SessionInfo[]>>({});
+  const [showArtifactDialog, setShowArtifactDialog] = useState(false);
+  const [creatingSessionForAgent, setCreatingSessionForAgent] = useState<string | null>(null);
+  const [loadingSessionsForAgent, setLoadingSessionsForAgent] = useState<string | null>(null);
 
   // Get the agent manager service
   const getAgentManagerService = useCallback(async () => {
@@ -1076,7 +1017,30 @@ export default function AgentManager() {
     return () => clearInterval(retryInterval);
   }, [isLoggedIn, server, serviceStatus, getAgentManagerService, loadAgents]);
 
-  // Load sessions when agent is selected
+  // Load sessions when agent is expanded in sidebar
+  const loadSessionsForAgent = useCallback(async (agentId: string) => {
+    const svc = agentManagerService || await getAgentManagerService();
+    if (!svc) return;
+
+    setLoadingSessionsForAgent(agentId);
+    try {
+      const sessionList = await svc.list_sessions({ agent_id: agentId, _rkwargs: true });
+      const processedSessions = (sessionList || []).map((session: SessionInfo) => {
+        if (!session.name || session.name === "New Session") {
+          return { ...session, name: extractSessionName(session.session_id) };
+        }
+        return session;
+      });
+      setAgentSessions(prev => ({ ...prev, [agentId]: processedSessions }));
+    } catch (err) {
+      console.error("Failed to load sessions for agent:", err);
+      setAgentSessions(prev => ({ ...prev, [agentId]: [] }));
+    } finally {
+      setLoadingSessionsForAgent(null);
+    }
+  }, [agentManagerService, getAgentManagerService]);
+
+  // Load sessions when agent is selected (keep for compatibility)
   useEffect(() => {
     if (selectedAgent) {
       loadSessions(selectedAgent.agent_id);
@@ -1085,6 +1049,21 @@ export default function AgentManager() {
       setSelectedSession(null);
     }
   }, [selectedAgent, loadSessions]);
+
+  // Toggle agent expansion in sidebar
+  const toggleAgentExpanded = useCallback((agentId: string) => {
+    setExpandedAgents(prev => {
+      const next = new Set(prev);
+      if (next.has(agentId)) {
+        next.delete(agentId);
+      } else {
+        next.add(agentId);
+        // Load sessions when expanding
+        loadSessionsForAgent(agentId);
+      }
+      return next;
+    });
+  }, [loadSessionsForAgent]);
 
   // Handle URL query parameter for agent selection
   useEffect(() => {
@@ -1434,10 +1413,10 @@ export default function AgentManager() {
       {/* Sidebar */}
       <div className="w-80 bg-white border-r border-gray-200 flex flex-col shadow-lg">
         {/* Header */}
-        <div className="p-4 border-b border-gray-200 bg-white">
-          <div className="flex items-center justify-between mb-3">
+        <div className="px-4 py-3 border-b border-gray-200 bg-white">
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <h2 className="text-lg font-semibold text-gray-800">My Agents</h2>
+              <h2 className="text-lg font-semibold text-gray-800">Agents</h2>
               {isLoggedIn && (
                 <div className="flex items-center gap-1.5" title={`Service: ${serviceStatus}`}>
                   <span className={`w-2 h-2 rounded-full ${
@@ -1445,39 +1424,29 @@ export default function AgentManager() {
                     serviceStatus === 'connecting' ? 'bg-yellow-500 animate-pulse' :
                     'bg-red-500'
                   }`}></span>
-                  <span className={`text-xs ${
-                    serviceStatus === 'online' ? 'text-green-600' :
-                    serviceStatus === 'connecting' ? 'text-yellow-600' :
-                    'text-red-600'
-                  }`}>
-                    {serviceStatus === 'online' ? 'Online' :
-                     serviceStatus === 'connecting' ? 'Connecting...' :
-                     'Offline'}
-                  </span>
                 </div>
               )}
             </div>
+            {/* Small Create Agent Button */}
+            {isLoggedIn && (
+              <button
+                onClick={() => {
+                  setEditingAgent(null);
+                  setIsCreateDialogOpen(true);
+                }}
+                className="p-1.5 bg-gradient-to-r from-indigo-600 to-cyan-600 text-white rounded-lg hover:from-indigo-700 hover:to-cyan-700 shadow-sm transition-all"
+                title="Create New Agent"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+              </button>
+            )}
           </div>
-
-          {/* Create Agent Button */}
-          {isLoggedIn && (
-            <button
-              onClick={() => {
-                setEditingAgent(null);
-                setIsCreateDialogOpen(true);
-              }}
-              className="w-full px-4 py-3 bg-gradient-to-r from-indigo-600 to-cyan-600 text-white font-semibold rounded-lg hover:from-indigo-700 hover:to-cyan-700 shadow-md transform transition-all hover:scale-[1.02] flex items-center justify-center gap-2"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              Create New Agent
-            </button>
-          )}
         </div>
 
         {/* Agent List */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-2">
+        <div className="flex-1 overflow-y-auto p-2 space-y-1">
           {!isLoggedIn ? (
             <div className="text-center py-8 text-gray-500">
               <svg className="w-12 h-12 mx-auto mb-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1513,51 +1482,322 @@ export default function AgentManager() {
               </button>
             </div>
           ) : (
-            agents.map(agent => (
-              <button
-                key={agent.agent_id}
-                onClick={async () => {
-                  // Show loading state for agent selection
-                  setLoadingAgent(true);
-                  setLogs([]); // Clear logs when switching agents
+            agents.map(agent => {
+              const isExpanded = expandedAgents.has(agent.agent_id);
+              const isSelected = selectedAgent?.agent_id === agent.agent_id;
+              const agentSessionList = agentSessions[agent.agent_id] || [];
 
-                  try {
-                    // Fetch full agent details when selecting
-                    const svc = agentManagerService || await getAgentManagerService();
-                    if (svc) {
-                      const fullAgent = await svc.get_agent({ agent_id: agent.agent_id, _rkwargs: true });
-                      setSelectedAgent(fullAgent);
-                      // Update URL with agent query parameter
-                      setSearchParams({ agent: agent.agent_id });
-                    } else {
-                      setSelectedAgent(agent);
-                      setSearchParams({ agent: agent.agent_id });
-                    }
-                  } catch (err) {
-                    console.error('Failed to fetch agent details:', err);
-                    setSelectedAgent(agent); // Fallback to list data
-                    setSearchParams({ agent: agent.agent_id });
-                  } finally {
-                    setLoadingAgent(false);
-                  }
-                }}
-                className={`w-full text-left p-3 rounded-lg border transition-all transform hover:scale-[1.02] ${
-                  selectedAgent?.agent_id === agent.agent_id
-                    ? 'bg-gradient-to-r from-indigo-50 to-cyan-50 border-indigo-300 shadow-md ring-2 ring-indigo-400 ring-opacity-50'
-                    : 'bg-white border-gray-200 hover:bg-gray-50 hover:border-gray-300 hover:shadow'
-                }`}
-              >
-                <div className="flex items-start gap-2">
-                  <svg className="w-5 h-5 mt-0.5 flex-shrink-0 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                  </svg>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-gray-900 truncate">{agent.name}</p>
-                    <p className="text-xs text-gray-500 mt-1 truncate">{agent.description || "No description"}</p>
+              return (
+                <div key={agent.agent_id} className="select-none mb-1">
+                  {/* Agent Row */}
+                  <div
+                    className={`flex items-center gap-2 px-3 py-2.5 rounded-xl cursor-pointer transition-all group ${
+                      isSelected
+                        ? 'bg-gradient-to-r from-indigo-50 to-blue-50 text-indigo-800 shadow-sm border border-indigo-100'
+                        : 'hover:bg-gray-50 text-gray-700 border border-transparent'
+                    }`}
+                  >
+                    {/* Expand/Collapse Arrow */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleAgentExpanded(agent.agent_id);
+                      }}
+                      className="p-1 hover:bg-gray-200/50 rounded-lg transition-colors"
+                    >
+                      <svg
+                        className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </button>
+
+                    {/* Agent Icon */}
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                      isSelected ? 'bg-indigo-100' : 'bg-gray-100'
+                    }`}>
+                      <svg className={`w-4.5 h-4.5 ${isSelected ? 'text-indigo-600' : 'text-gray-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                      </svg>
+                    </div>
+
+                    {/* Agent Name */}
+                    <div
+                      className="flex-1 min-w-0 cursor-pointer"
+                      onClick={async () => {
+                        setLoadingAgent(true);
+                        setLogs([]);
+                        setSelectedSession(null);
+                        setIsStatefulMode(false);
+
+                        try {
+                          const svc = agentManagerService || await getAgentManagerService();
+                          if (svc) {
+                            const fullAgent = await svc.get_agent({ agent_id: agent.agent_id, _rkwargs: true });
+                            setSelectedAgent(fullAgent);
+                            setSearchParams({ agent: agent.agent_id });
+                          } else {
+                            setSelectedAgent(agent);
+                            setSearchParams({ agent: agent.agent_id });
+                          }
+                        } catch (err) {
+                          console.error('Failed to fetch agent details:', err);
+                          setSelectedAgent(agent);
+                          setSearchParams({ agent: agent.agent_id });
+                        } finally {
+                          setLoadingAgent(false);
+                        }
+
+                        // Auto-expand when selecting
+                        if (!isExpanded) {
+                          toggleAgentExpanded(agent.agent_id);
+                        }
+                      }}
+                    >
+                      <p className="text-sm font-semibold truncate">{agent.name}</p>
+                      {agent.description && (
+                        <p className="text-xs text-gray-400 truncate mt-0.5">{agent.description}</p>
+                      )}
+                    </div>
+
+                    {/* Action Buttons - visible on hover */}
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      {/* Stateless/Incognito Button */}
+                      <button
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          setLoadingAgent(true);
+                          setLogs([]);
+                          setSelectedSession(null);
+                          setIsStatefulMode(false);
+
+                          try {
+                            const svc = agentManagerService || await getAgentManagerService();
+                            if (svc) {
+                              const fullAgent = await svc.get_agent({ agent_id: agent.agent_id, _rkwargs: true });
+                              setSelectedAgent(fullAgent);
+                              setSearchParams({ agent: agent.agent_id });
+                            } else {
+                              setSelectedAgent(agent);
+                              setSearchParams({ agent: agent.agent_id });
+                            }
+                          } catch (err) {
+                            setSelectedAgent(agent);
+                            setSearchParams({ agent: agent.agent_id });
+                          } finally {
+                            setLoadingAgent(false);
+                          }
+
+                          if (!isExpanded) {
+                            toggleAgentExpanded(agent.agent_id);
+                          }
+                        }}
+                        className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                        title="Stateless mode (no history saved)"
+                      >
+                        {/* Incognito icon - person with hat and glasses */}
+                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                          {/* Hat */}
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 11h16M6 11V9a6 6 0 0112 0v2" />
+                          {/* Hat brim */}
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 11h18" />
+                          {/* Glasses */}
+                          <circle cx="9" cy="15" r="2.5" strokeWidth={1.5} />
+                          <circle cx="15" cy="15" r="2.5" strokeWidth={1.5} />
+                          <path strokeLinecap="round" strokeWidth={1.5} d="M11.5 15h1" />
+                          {/* Nose */}
+                          <path strokeLinecap="round" strokeWidth={1.5} d="M12 15v2.5" />
+                        </svg>
+                      </button>
+
+                      {/* New Session Button */}
+                      <button
+                        onClick={async (e) => {
+                          e.stopPropagation();
+
+                          // Prevent double-clicks
+                          if (creatingSessionForAgent === agent.agent_id) return;
+
+                          // Expand immediately to show loading state
+                          if (!isExpanded) {
+                            toggleAgentExpanded(agent.agent_id);
+                          }
+
+                          setCreatingSessionForAgent(agent.agent_id);
+
+                          try {
+                            // First select the agent
+                            const svc = agentManagerService || await getAgentManagerService();
+                            if (svc) {
+                              const fullAgent = await svc.get_agent({ agent_id: agent.agent_id, _rkwargs: true });
+                              setSelectedAgent(fullAgent);
+                            } else {
+                              setSelectedAgent(agent);
+                            }
+
+                            // Create new session
+                            const newSession = await handleCreateSession(agent.agent_id);
+                            if (newSession) {
+                              setSelectedSession(newSession);
+                              setIsStatefulMode(true);
+                              setLogs([]);
+                              setSearchParams({ agent: agent.agent_id, session: newSession.session_id });
+                              // Refresh sessions list
+                              await loadSessionsForAgent(agent.agent_id);
+                            }
+                          } catch (err) {
+                            console.error('Failed to create session:', err);
+                            setSelectedAgent(agent);
+                          } finally {
+                            setCreatingSessionForAgent(null);
+                          }
+                        }}
+                        disabled={creatingSessionForAgent === agent.agent_id}
+                        className={`p-1.5 rounded-lg transition-colors ${
+                          creatingSessionForAgent === agent.agent_id
+                            ? 'text-indigo-400 bg-indigo-50 cursor-wait'
+                            : 'text-indigo-500 hover:text-indigo-700 hover:bg-indigo-50'
+                        }`}
+                        title="Create new session"
+                      >
+                        {creatingSessionForAgent === agent.agent_id ? (
+                          <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                        ) : (
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                          </svg>
+                        )}
+                      </button>
+                    </div>
+
+                    {/* Session Count Badge - hide on hover */}
+                    {agentSessionList.length > 0 && (
+                      <span className="px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-500 rounded-full group-hover:hidden">
+                        {agentSessionList.length}
+                      </span>
+                    )}
                   </div>
+
+                  {/* Expanded Session List */}
+                  {isExpanded && (
+                    <div className="ml-6 mt-1.5 space-y-1 border-l-2 border-gray-100 pl-3">
+                      {/* Loading Sessions Indicator */}
+                      {loadingSessionsForAgent === agent.agent_id && (
+                        <div className="flex items-center gap-2.5 px-3 py-2.5 text-gray-500">
+                          <svg className="w-4 h-4 animate-spin text-gray-400" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          <span className="text-xs">Loading sessions...</span>
+                        </div>
+                      )}
+
+                      {/* Creating Session Indicator */}
+                      {creatingSessionForAgent === agent.agent_id && (
+                        <div className="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-indigo-50 border border-indigo-100 text-indigo-700 animate-pulse">
+                          <div className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 bg-indigo-100">
+                            <svg className="w-3.5 h-3.5 animate-spin text-indigo-600" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                          </div>
+                          <span className="text-sm font-medium">Creating session...</span>
+                        </div>
+                      )}
+
+                      {/* Session Items (only show when not loading) */}
+                      {loadingSessionsForAgent !== agent.agent_id && agentSessionList.map(session => (
+                        <div
+                          key={session.session_id}
+                          onClick={async () => {
+                            setLoadingAgent(true);
+
+                            try {
+                              const svc = agentManagerService || await getAgentManagerService();
+                              if (svc) {
+                                const fullAgent = await svc.get_agent({ agent_id: agent.agent_id, _rkwargs: true });
+                                setSelectedAgent(fullAgent);
+                              } else {
+                                setSelectedAgent(agent);
+                              }
+                            } catch (err) {
+                              setSelectedAgent(agent);
+                            } finally {
+                              setLoadingAgent(false);
+                            }
+
+                            setSelectedSession(session);
+                            setIsStatefulMode(true);
+                            setSearchParams({ agent: agent.agent_id, session: session.session_id });
+
+                            // Load conversation history
+                            const hasOngoingTask = await loadConversationHistory(session.session_id);
+                            if (hasOngoingTask && !isExecuting) {
+                              const svc = agentManagerService || await getAgentManagerService();
+                              if (svc) {
+                                try {
+                                  setIsExecuting(true);
+                                  await watchTaskEvents(session.session_id, true);
+                                } catch (err) {
+                                  setIsExecuting(false);
+                                }
+                              }
+                            }
+                          }}
+                          className={`flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-pointer transition-all group/session ${
+                            selectedSession?.session_id === session.session_id
+                              ? 'bg-emerald-50 text-emerald-800 border border-emerald-100'
+                              : 'hover:bg-gray-50 text-gray-600 border border-transparent'
+                          }`}
+                        >
+                          <div className={`w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 ${
+                            selectedSession?.session_id === session.session_id ? 'bg-emerald-100' : 'bg-gray-100'
+                          }`}>
+                            <svg className={`w-3.5 h-3.5 ${
+                              selectedSession?.session_id === session.session_id ? 'text-emerald-600' : 'text-gray-400'
+                            }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                            </svg>
+                          </div>
+                          <span className="text-sm truncate flex-1 font-medium">{session.name}</span>
+                          {/* Delete Session Button */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteSession(session.session_id, agent.agent_id);
+                            }}
+                            className="p-1 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded opacity-0 group-hover/session:opacity-100 transition-all"
+                            title="Delete session"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        </div>
+                      ))}
+
+                      {/* Empty state when no sessions (only show if not loading or creating) */}
+                      {agentSessionList.length === 0 &&
+                       loadingSessionsForAgent !== agent.agent_id &&
+                       creatingSessionForAgent !== agent.agent_id && (
+                        <div className="px-3 py-3 text-xs text-gray-400 text-center">
+                          <svg className="w-8 h-8 mx-auto mb-1.5 text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                          </svg>
+                          No sessions yet
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
-              </button>
-            ))
+              );
+            })
           )}
         </div>
       </div>
@@ -1576,83 +1816,37 @@ export default function AgentManager() {
             </div>
           </div>
         ) : selectedAgent ? (
-          <AgentInfoPanel
-            agent={selectedAgent}
-            onEdit={() => {
-              setEditingAgent(selectedAgent);
-              setIsCreateDialogOpen(true);
-            }}
-            onDelete={() => handleDeleteAgent(selectedAgent.agent_id)}
-            logs={logs}
-            isExecuting={isExecuting}
-            onExecuteTask={handleExecuteTask}
-            taskInput={taskInput}
-            setTaskInput={setTaskInput}
-            onClearLogs={() => setLogs([])}
-            sessions={sessions}
-            selectedSession={selectedSession}
-            isLoadingHistory={isLoadingHistory}
-            copiedAgentId={copiedAgentId}
-            setCopiedAgentId={setCopiedAgentId}
-            onSessionSelect={async (session) => {
-              setSelectedSession(session);
-              if (session) {
-                // Automatically switch to stateful mode when a session is selected
-                if (!isStatefulMode) {
-                  setIsStatefulMode(true);
-                }
-                // Load conversation history (includes both saved turns and live events)
-                const hasOngoingTask = await loadConversationHistory(session.session_id);
-
-                // If there's an ongoing task, reconnect to watch for new events
-                // This allows resuming tasks after page reload or connection interruption
-                if (hasOngoingTask && !isExecuting) {
-                  const svc = agentManagerService || await getAgentManagerService();
-                  if (svc) {
-                    try {
-                      console.log(`Reconnecting to ongoing task in session: ${session.session_id}`);
-                      setIsExecuting(true);
-
-                      // Watch the session for new events (isReconnection=true suppresses expected errors)
-                      await watchTaskEvents(session.session_id, true);
-                    } catch (err) {
-                      console.error("Error reconnecting to ongoing task:", err);
-                      setIsExecuting(false);
-                    }
-                  }
-                }
-              } else {
-                // Clear logs when no session selected
-                setLogs([]);
-              }
-            }}
-            onCreateSession={async () => {
-              if (selectedAgent) {
-                const newSession = await handleCreateSession(selectedAgent.agent_id);
-                if (newSession) {
-                  setSelectedSession(newSession);
-                  setLogs([]);
-                  // Automatically switch to stateful mode when creating a session
-                  if (!isStatefulMode) {
-                    setIsStatefulMode(true);
-                  }
-                }
-              }
-            }}
-            onDeleteSession={async (sessionId) => {
-              if (selectedAgent) {
-                await handleDeleteSession(sessionId, selectedAgent.agent_id);
-              }
-            }}
-            isStatefulMode={isStatefulMode}
-            onToggleStatefulMode={() => {
-              setIsStatefulMode(!isStatefulMode);
-              if (isStatefulMode) {
-                // Switching to stateless mode
-                setSelectedSession(null);
-              }
-            }}
-          />
+          <>
+            <AgentInfoPanel
+              agent={selectedAgent}
+              onEdit={() => {
+                setEditingAgent(selectedAgent);
+                setIsCreateDialogOpen(true);
+              }}
+              onDelete={() => handleDeleteAgent(selectedAgent.agent_id)}
+              logs={logs}
+              isExecuting={isExecuting}
+              onExecuteTask={handleExecuteTask}
+              taskInput={taskInput}
+              setTaskInput={setTaskInput}
+              onClearLogs={() => setLogs([])}
+              selectedSession={selectedSession}
+              isStatefulMode={isStatefulMode}
+              isLoadingHistory={isLoadingHistory}
+              copiedAgentId={copiedAgentId}
+              setCopiedAgentId={setCopiedAgentId}
+              onOpenArtifactDialog={() => setShowArtifactDialog(true)}
+            />
+            {/* Session Artifact Dialog */}
+            {selectedSession && (
+              <SessionArtifactDialog
+                sessionId={selectedSession.session_id}
+                sessionName={selectedSession.name}
+                isOpen={showArtifactDialog}
+                onClose={() => setShowArtifactDialog(false)}
+              />
+            )}
+          </>
         ) : (
           <div className="flex items-center justify-center h-full p-8">
             <div className="max-w-2xl w-full">
