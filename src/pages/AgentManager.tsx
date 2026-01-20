@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useHyphaStore } from "../store/hyphaStore";
 import SessionArtifactDialog from "../components/SessionArtifactDialog";
+import SessionHostingDialog from "../components/SessionHostingDialog";
 
 interface AgentInfo {
   agent_id: string;
@@ -511,7 +512,8 @@ function AgentInfoPanel({
   isLoadingHistory,
   copiedAgentId,
   setCopiedAgentId,
-  onOpenArtifactDialog
+  onOpenArtifactDialog,
+  onOpenHostingDialog
 }: {
   agent: AgentInfo;
   onEdit: () => void;
@@ -528,6 +530,7 @@ function AgentInfoPanel({
   copiedAgentId: boolean;
   setCopiedAgentId: (val: boolean) => void;
   onOpenArtifactDialog: () => void;
+  onOpenHostingDialog: () => void;
 }) {
   const logContainerRef = useRef<HTMLDivElement>(null);
   const [expandedLogs, setExpandedLogs] = useState<Set<string>>(new Set());
@@ -620,17 +623,28 @@ function AgentInfoPanel({
 
           {/* Right: Action Buttons */}
           <div className="flex items-center gap-1">
-            {/* Artifact Dialog Button (only for sessions) */}
+            {/* Session Buttons (only for sessions) */}
             {selectedSession && (
-              <button
-                onClick={onOpenArtifactDialog}
-                className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                title="Manage Session Files"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-                </svg>
-              </button>
+              <>
+                <button
+                  onClick={onOpenArtifactDialog}
+                  className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                  title="Manage Session Files"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                  </svg>
+                </button>
+                <button
+                  onClick={onOpenHostingDialog}
+                  className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded transition-colors"
+                  title="Static Hosting"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+                  </svg>
+                </button>
+              </>
             )}
             <button
               onClick={onEdit}
@@ -804,6 +818,7 @@ export default function AgentManager() {
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [agentSessions, setAgentSessions] = useState<Record<string, SessionInfo[]>>({});
   const [showArtifactDialog, setShowArtifactDialog] = useState(false);
+  const [showHostingDialog, setShowHostingDialog] = useState(false);
   const [creatingSessionForAgent, setCreatingSessionForAgent] = useState<string | null>(null);
   const [loadingSessionsForAgent, setLoadingSessionsForAgent] = useState<string | null>(null);
 
@@ -1716,20 +1731,23 @@ export default function AgentManager() {
                         <div
                           key={session.session_id}
                           onClick={async () => {
-                            setLoadingAgent(true);
+                            // Only load agent if switching to a different agent
+                            if (selectedAgent?.agent_id !== agent.agent_id) {
+                              setLoadingAgent(true);
 
-                            try {
-                              const svc = agentManagerService || await getAgentManagerService();
-                              if (svc) {
-                                const fullAgent = await svc.get_agent({ agent_id: agent.agent_id, _rkwargs: true });
-                                setSelectedAgent(fullAgent);
-                              } else {
+                              try {
+                                const svc = agentManagerService || await getAgentManagerService();
+                                if (svc) {
+                                  const fullAgent = await svc.get_agent({ agent_id: agent.agent_id, _rkwargs: true });
+                                  setSelectedAgent(fullAgent);
+                                } else {
+                                  setSelectedAgent(agent);
+                                }
+                              } catch (err) {
                                 setSelectedAgent(agent);
+                              } finally {
+                                setLoadingAgent(false);
                               }
-                            } catch (err) {
-                              setSelectedAgent(agent);
-                            } finally {
-                              setLoadingAgent(false);
                             }
 
                             setSelectedSession(session);
@@ -1836,6 +1854,7 @@ export default function AgentManager() {
               copiedAgentId={copiedAgentId}
               setCopiedAgentId={setCopiedAgentId}
               onOpenArtifactDialog={() => setShowArtifactDialog(true)}
+              onOpenHostingDialog={() => setShowHostingDialog(true)}
             />
             {/* Session Artifact Dialog */}
             {selectedSession && (
@@ -1844,6 +1863,15 @@ export default function AgentManager() {
                 sessionName={selectedSession.name}
                 isOpen={showArtifactDialog}
                 onClose={() => setShowArtifactDialog(false)}
+              />
+            )}
+            {/* Session Hosting Dialog */}
+            {selectedSession && (
+              <SessionHostingDialog
+                sessionId={selectedSession.session_id}
+                sessionName={selectedSession.name}
+                isOpen={showHostingDialog}
+                onClose={() => setShowHostingDialog(false)}
               />
             )}
           </>
