@@ -8,7 +8,7 @@ import { Grid } from '@mui/material';
 import TagSelection from './TagSelection';
 
 interface ResourceGridProps {
-  type?: 'tool' | 'data' | 'agent' ;
+  type?: 'tool' | 'data' | 'agent' | 'datasets';
 }
 
 interface PaginationProps {

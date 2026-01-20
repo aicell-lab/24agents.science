@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import LoginButton from './LoginButton';
-import { BiCube } from 'react-icons/bi';
+import { BiCube, BiSearch } from 'react-icons/bi';
 import { BsDatabase, BsCollection } from 'react-icons/bs';
 import { HiOutlineBeaker } from 'react-icons/hi';
 import { IoDocumentTextOutline, IoCloudUploadOutline } from 'react-icons/io5';
@@ -62,6 +62,10 @@ const Navbar: React.FC = () => {
             <Link to="/agents" className={navLinkClasses("/agents")}>
               <HiOutlineBeaker className="mr-2" size={20} />
               Agents
+            </Link>
+            <Link to="/query" className={navLinkClasses("/query")}>
+              <BiSearch className="mr-2" size={20} />
+              Query
             </Link>
             <Link to="/docs" className={navLinkClasses("/docs")}>
               <IoDocumentTextOutline className="mr-2" size={18} />
@@ -182,6 +186,14 @@ const Navbar: React.FC = () => {
             >
               <HiOutlineBeaker className="mr-3" size={20} />
               Applications
+            </Link>
+            <Link 
+              to="/query" 
+              className={mobileNavLinkClasses("/query")}
+              onClick={() => setIsMobileMenuOpen(false)}
+            >
+              <BiSearch className="mr-3" size={20} />
+              Query
             </Link>
             <a 
               href="https://24agents.aicell.io/docs"
