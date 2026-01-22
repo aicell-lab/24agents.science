@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { useHyphaStore } from "../store/hyphaStore";
 import SessionArtifactDialog from "../components/SessionArtifactDialog";
 import SessionHostingDialog from "../components/SessionHostingDialog";
@@ -133,7 +135,16 @@ function LogEntryItem({ log, isExpanded, onToggle }: { log: LogEntry; isExpanded
         return details?.content || log.content;
 
       case 'assistant':
-        return details?.content || log.content;
+        const assistantContent = details?.content || log.content;
+        return (
+          <div className="markdown-body">
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+            >
+              {assistantContent || ''}
+            </ReactMarkdown>
+          </div>
+        );
 
       case 'tool_use':
         const toolName = details?.name || 'Unknown';
@@ -173,12 +184,10 @@ function LogEntryItem({ log, isExpanded, onToggle }: { log: LogEntry; isExpanded
         );
 
       case 'result':
-        const summary = details?.summary || log.content;
         const turnsUsed = details?.turns_used;
         const status = details?.status;
         return (
           <div>
-            <div className="text-teal-200">{summary}</div>
             <div className="text-xs text-gray-400 mt-1">
               {status && <span className="capitalize">{status}</span>}
               {turnsUsed && <span> • {turnsUsed} turns</span>}
@@ -193,10 +202,86 @@ function LogEntryItem({ log, isExpanded, onToggle }: { log: LogEntry; isExpanded
       case 'system':
         const subtype = details?.subtype || '';
         const data = details?.data;
+
+        // For init subtype, show a clean summary card
+        if (subtype === 'init' && data) {
+          const tools = data.tools || [];
+          const agents = data.agents || [];
+          const skills = data.skills || [];
+          const model = data.model || '';
+          const permissionMode = data.permissionMode || '';
+          const mcpServers = data.mcp_servers || [];
+          const slashCommands = data.slash_commands || [];
+          const cwd = data.cwd || '';
+
+          const builtInTools = tools.filter((t: string) => !t.startsWith('mcp__'));
+          const mcpTools = tools.filter((t: string) => t.startsWith('mcp__'));
+
+          const formatModel = (m: string) => m.replace('claude-', '').replace(/-\d{8}$/, '');
+
+          const TagList = ({ items, max = 6 }: { items: string[]; max?: number }) => {
+            if (items.length === 0) return <span className="text-gray-600">—</span>;
+            const shown = items.slice(0, max);
+            const remaining = items.length - max;
+            return (
+              <span className="text-[11px] text-gray-400">
+                {shown.join(', ')}
+                {remaining > 0 && <span className="text-gray-500"> +{remaining}</span>}
+              </span>
+            );
+          };
+
+          return (
+            <div className="space-y-0.5 text-[11px]">
+              {/* Row 1: Model & Mode - indent to align with rows below */}
+              <div className="flex items-center">
+                <span className="text-gray-500 w-14 inline-block flex-shrink-0">Model</span>
+                <span className="font-medium text-blue-400 mr-4">{formatModel(model)}</span>
+                <span className="text-gray-500 mr-1.5">Mode</span>
+                <span className={`font-medium mr-4 ${permissionMode === 'bypassPermissions' ? 'text-amber-400' : 'text-green-400'}`}>
+                  {permissionMode === 'bypassPermissions' ? 'bypass' : permissionMode}
+                </span>
+                {mcpServers.length > 0 && (
+                  <>
+                    <span className="text-gray-500 mr-1.5">MCP</span>
+                    <span className="font-medium text-green-400">{mcpServers.map((s: { name: string }) => s.name).join(', ')}</span>
+                  </>
+                )}
+              </div>
+
+              {/* Row 2: Tools */}
+              <div className="flex"><span className="text-gray-500 w-14 inline-block flex-shrink-0">Tools</span> <TagList items={builtInTools} max={10} /></div>
+
+              {/* Row 3: MCP Tools (if any) */}
+              {mcpTools.length > 0 && (
+                <div className="flex"><span className="text-gray-500 w-14 inline-block flex-shrink-0">MCP</span> <TagList items={mcpTools.map((t: string) => t.replace(/^mcp__\w+__/, ''))} max={6} /></div>
+              )}
+
+              {/* Row 4: Agents */}
+              <div className="flex"><span className="text-gray-500 w-14 inline-block flex-shrink-0">Agents</span> <TagList items={agents} /></div>
+
+              {/* Row 5: Commands */}
+              {slashCommands.length > 0 && (
+                <div className="flex"><span className="text-gray-500 w-14 inline-block flex-shrink-0">Cmds</span> <TagList items={slashCommands.map((c: string) => `/${c}`)} max={8} /></div>
+              )}
+
+              {/* Row 6: Skills (if any) */}
+              {skills.length > 0 && (
+                <div className="flex"><span className="text-gray-500 w-14 inline-block flex-shrink-0">Skills</span> <TagList items={skills} /></div>
+              )}
+
+              {/* Row 7: Working directory */}
+              {cwd && (
+                <div className="flex"><span className="text-gray-500 w-14 inline-block flex-shrink-0">CWD</span> <span className="text-gray-400 font-mono truncate">{cwd}</span></div>
+              )}
+            </div>
+          );
+        }
+
+        // Fallback for other system messages
         return (
           <div>
-            <span className="text-gray-300">{subtype || 'System message'}</span>
-            {data && <div className="text-xs text-gray-500 mt-1">{JSON.stringify(data).substring(0, 100)}</div>}
+            {data && <div className="text-xs text-gray-500 mt-1"><span className="text-gray-300">{subtype}</span>: {JSON.stringify(data).substring(0, 100)}</div>}
           </div>
         );
 
@@ -1083,6 +1168,7 @@ export default function AgentManager() {
   // Handle URL query parameter for agent selection
   useEffect(() => {
     const agentIdFromUrl = searchParams.get('agent');
+    const sessionIdFromUrl = searchParams.get('session');
 
     // Only auto-select if we have agents loaded and URL has agent parameter
     if (agentIdFromUrl && agents.length > 0 && !selectedAgent) {
@@ -1097,6 +1183,29 @@ export default function AgentManager() {
             if (svc) {
               const fullAgent = await svc.get_agent({ agent_id: agentIdFromUrl, _rkwargs: true });
               setSelectedAgent(fullAgent);
+
+              // If session ID is in URL, load sessions and select the specified session
+              if (sessionIdFromUrl) {
+                const sessionList = await svc.list_sessions({ agent_id: agentIdFromUrl, _rkwargs: true });
+                const processedSessions = (sessionList || []).map((session: SessionInfo) => {
+                  if (!session.name || session.name === "New Session") {
+                    return { ...session, name: extractSessionName(session.session_id) };
+                  }
+                  return session;
+                });
+
+                // Update both session states
+                setSessions(processedSessions);
+                setAgentSessions(prev => ({ ...prev, [agentIdFromUrl]: processedSessions }));
+
+                // Find and select the target session
+                const targetSession = processedSessions.find((s: SessionInfo) => s.session_id === sessionIdFromUrl);
+                if (targetSession) {
+                  setSelectedSession(targetSession);
+                  // Expand the agent in sidebar
+                  setExpandedAgents(prev => new Set(prev).add(agentIdFromUrl));
+                }
+              }
             } else {
               setSelectedAgent(agentToSelect);
             }
