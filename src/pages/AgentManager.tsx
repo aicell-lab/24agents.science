@@ -1201,9 +1201,13 @@ export default function AgentManager() {
                 // Find and select the target session
                 const targetSession = processedSessions.find((s: SessionInfo) => s.session_id === sessionIdFromUrl);
                 if (targetSession) {
-                  setSelectedSession(targetSession);
-                  // Expand the agent in sidebar
+                  // Enable stateful mode and select session - order matters for useEffect trigger
+                  setIsStatefulMode(true);
                   setExpandedAgents(prev => new Set(prev).add(agentIdFromUrl));
+                  // Use setTimeout to ensure state updates are processed before setting session
+                  setTimeout(() => {
+                    setSelectedSession(targetSession);
+                  }, 0);
                 }
               }
             } else {
