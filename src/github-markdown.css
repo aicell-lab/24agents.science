@@ -1,15 +1,16 @@
-/* light */
+/* dark theme for agent manager */
 .markdown-body {
-  color-scheme: light;
+  color-scheme: dark;
   -ms-text-size-adjust: 100%;
   -webkit-text-size-adjust: 100%;
   margin: 0;
-  color: #24292f;
-  background-color: #ffffff;
-  font-family: -apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif,"Apple Color Emoji","Segoe UI Emoji";
-  font-size: 14px;
-  line-height: 1.6;
+  color: inherit;
+  background-color: transparent;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: 1.5;
   word-wrap: break-word;
+  white-space: normal;
 }
 
 .markdown-body .octicon {
@@ -323,6 +324,14 @@
   padding-left: 1.5em;
 }
 
+.markdown-body ul {
+  list-style-type: disc;
+}
+
+.markdown-body ol {
+  list-style-type: decimal;
+}
+
 .markdown-body ol ol,
 .markdown-body ul ol {
   list-style-type: lower-roman;
@@ -419,7 +428,7 @@
 .markdown-body pre,
 .markdown-body details {
   margin-top: 0;
-  margin-bottom: 1rem;
+  margin-bottom: 0.6em;
 }
 
 .markdown-body blockquote>:first-child {
@@ -538,11 +547,17 @@
 }
 
 .markdown-body li>p {
-  margin-top: 1rem;
+  margin-top: 0;
+  margin-bottom: 0.3em;
 }
 
 .markdown-body li+li {
-  margin-top: 0.15em;
+  margin-top: 0.25em;
+}
+
+.markdown-body li {
+  margin-top: 0;
+  margin-bottom: 0.2em;
 }
 
 .markdown-body dl {

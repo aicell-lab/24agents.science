@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { useHyphaStore } from "../store/hyphaStore";
 import SessionArtifactDialog from "../components/SessionArtifactDialog";
 import SessionHostingDialog from "../components/SessionHostingDialog";
@@ -18,6 +20,8 @@ interface SessionInfo {
   agent_id: string;
   name: string;
   description?: string;
+  storage_type?: 'raw' | 'git';
+  git_url?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -133,7 +137,16 @@ function LogEntryItem({ log, isExpanded, onToggle }: { log: LogEntry; isExpanded
         return details?.content || log.content;
 
       case 'assistant':
-        return details?.content || log.content;
+        const assistantContent = details?.content || log.content;
+        return (
+          <div className="markdown-body">
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+            >
+              {assistantContent || ''}
+            </ReactMarkdown>
+          </div>
+        );
 
       case 'tool_use':
         const toolName = details?.name || 'Unknown';
@@ -173,12 +186,10 @@ function LogEntryItem({ log, isExpanded, onToggle }: { log: LogEntry; isExpanded
         );
 
       case 'result':
-        const summary = details?.summary || log.content;
         const turnsUsed = details?.turns_used;
         const status = details?.status;
         return (
           <div>
-            <div className="text-teal-200">{summary}</div>
             <div className="text-xs text-gray-400 mt-1">
               {status && <span className="capitalize">{status}</span>}
               {turnsUsed && <span> • {turnsUsed} turns</span>}
@@ -193,10 +204,86 @@ function LogEntryItem({ log, isExpanded, onToggle }: { log: LogEntry; isExpanded
       case 'system':
         const subtype = details?.subtype || '';
         const data = details?.data;
+
+        // For init subtype, show a clean summary card
+        if (subtype === 'init' && data) {
+          const tools = data.tools || [];
+          const agents = data.agents || [];
+          const skills = data.skills || [];
+          const model = data.model || '';
+          const permissionMode = data.permissionMode || '';
+          const mcpServers = data.mcp_servers || [];
+          const slashCommands = data.slash_commands || [];
+          const cwd = data.cwd || '';
+
+          const builtInTools = tools.filter((t: string) => !t.startsWith('mcp__'));
+          const mcpTools = tools.filter((t: string) => t.startsWith('mcp__'));
+
+          const formatModel = (m: string) => m.replace('claude-', '').replace(/-\d{8}$/, '');
+
+          const TagList = ({ items, max = 6 }: { items: string[]; max?: number }) => {
+            if (items.length === 0) return <span className="text-gray-600">—</span>;
+            const shown = items.slice(0, max);
+            const remaining = items.length - max;
+            return (
+              <span className="text-[11px] text-gray-400">
+                {shown.join(', ')}
+                {remaining > 0 && <span className="text-gray-500"> +{remaining}</span>}
+              </span>
+            );
+          };
+
+          return (
+            <div className="space-y-0.5 text-[11px]">
+              {/* Row 1: Model & Mode - indent to align with rows below */}
+              <div className="flex items-center">
+                <span className="text-gray-500 w-14 inline-block flex-shrink-0">Model</span>
+                <span className="font-medium text-blue-400 mr-4">{formatModel(model)}</span>
+                <span className="text-gray-500 mr-1.5">Mode</span>
+                <span className={`font-medium mr-4 ${permissionMode === 'bypassPermissions' ? 'text-amber-400' : 'text-green-400'}`}>
+                  {permissionMode === 'bypassPermissions' ? 'bypass' : permissionMode}
+                </span>
+                {mcpServers.length > 0 && (
+                  <>
+                    <span className="text-gray-500 mr-1.5">MCP</span>
+                    <span className="font-medium text-green-400">{mcpServers.map((s: { name: string }) => s.name).join(', ')}</span>
+                  </>
+                )}
+              </div>
+
+              {/* Row 2: Tools */}
+              <div className="flex"><span className="text-gray-500 w-14 inline-block flex-shrink-0">Tools</span> <TagList items={builtInTools} max={10} /></div>
+
+              {/* Row 3: MCP Tools (if any) */}
+              {mcpTools.length > 0 && (
+                <div className="flex"><span className="text-gray-500 w-14 inline-block flex-shrink-0">MCP</span> <TagList items={mcpTools.map((t: string) => t.replace(/^mcp__\w+__/, ''))} max={6} /></div>
+              )}
+
+              {/* Row 4: Agents */}
+              <div className="flex"><span className="text-gray-500 w-14 inline-block flex-shrink-0">Agents</span> <TagList items={agents} /></div>
+
+              {/* Row 5: Commands */}
+              {slashCommands.length > 0 && (
+                <div className="flex"><span className="text-gray-500 w-14 inline-block flex-shrink-0">Cmds</span> <TagList items={slashCommands.map((c: string) => `/${c}`)} max={8} /></div>
+              )}
+
+              {/* Row 6: Skills (if any) */}
+              {skills.length > 0 && (
+                <div className="flex"><span className="text-gray-500 w-14 inline-block flex-shrink-0">Skills</span> <TagList items={skills} /></div>
+              )}
+
+              {/* Row 7: Working directory */}
+              {cwd && (
+                <div className="flex"><span className="text-gray-500 w-14 inline-block flex-shrink-0">CWD</span> <span className="text-gray-400 font-mono truncate">{cwd}</span></div>
+              )}
+            </div>
+          );
+        }
+
+        // Fallback for other system messages
         return (
           <div>
-            <span className="text-gray-300">{subtype || 'System message'}</span>
-            {data && <div className="text-xs text-gray-500 mt-1">{JSON.stringify(data).substring(0, 100)}</div>}
+            {data && <div className="text-xs text-gray-500 mt-1"><span className="text-gray-300">{subtype}</span>: {JSON.stringify(data).substring(0, 100)}</div>}
           </div>
         );
 
@@ -513,7 +600,8 @@ function AgentInfoPanel({
   copiedAgentId,
   setCopiedAgentId,
   onOpenArtifactDialog,
-  onOpenHostingDialog
+  onOpenHostingDialog,
+  onExportConversation
 }: {
   agent: AgentInfo;
   onEdit: () => void;
@@ -531,6 +619,7 @@ function AgentInfoPanel({
   setCopiedAgentId: (val: boolean) => void;
   onOpenArtifactDialog: () => void;
   onOpenHostingDialog: () => void;
+  onExportConversation: () => void;
 }) {
   const logContainerRef = useRef<HTMLDivElement>(null);
   const [expandedLogs, setExpandedLogs] = useState<Set<string>>(new Set());
@@ -571,7 +660,16 @@ function AgentInfoPanel({
                 <h1 className="text-lg font-bold text-gray-900 truncate">{agent.name}</h1>
                 {/* Session/Mode Badge */}
                 {isStatefulMode && selectedSession ? (
-                  <span className="px-2 py-0.5 text-xs bg-emerald-100 text-emerald-700 rounded-full font-medium">
+                  <span className={`px-2 py-0.5 text-xs rounded-full font-medium flex items-center gap-1 ${
+                    selectedSession.storage_type === 'git'
+                      ? 'bg-purple-100 text-purple-700'
+                      : 'bg-emerald-100 text-emerald-700'
+                  }`}>
+                    {selectedSession.storage_type === 'git' && (
+                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.438 9.8 8.205 11.385.6.11.82-.26.82-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.73.083-.73 1.205.085 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.108-.776.42-1.305.762-1.605-2.665-.305-5.467-1.334-5.467-5.93 0-1.31.468-2.382 1.235-3.22-.123-.304-.535-1.524.117-3.176 0 0 1.008-.322 3.3 1.23A11.5 11.5 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.29-1.553 3.297-1.23 3.297-1.23.653 1.652.241 2.872.118 3.176.77.838 1.234 1.91 1.234 3.22 0 4.61-2.807 5.624-5.479 5.92.43.37.814 1.102.814 2.222v3.293c0 .32.218.694.825.577C20.565 21.796 24 17.3 24 12c0-6.63-5.37-12-12-12z"/>
+                      </svg>
+                    )}
                     {selectedSession.name}
                   </span>
                 ) : (
@@ -642,6 +740,15 @@ function AgentInfoPanel({
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+                  </svg>
+                </button>
+                <button
+                  onClick={onExportConversation}
+                  className="p-1.5 text-orange-600 hover:bg-orange-50 rounded transition-colors"
+                  title="Export Conversation"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
                 </button>
               </>
@@ -739,6 +846,28 @@ function AgentInfoPanel({
                   onToggle={() => toggleLogExpanded(log.id)}
                 />
               ))}
+              {/* Thinking indicator when agent is working */}
+              {isExecuting && (
+                <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-indigo-500/10 to-cyan-500/10 border border-indigo-500/20 rounded-lg animate-pulse">
+                  <div className="flex items-center justify-center w-8 h-8 rounded-full bg-indigo-500/20">
+                    <svg className="w-4 h-4 text-indigo-400 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-indigo-400">Agent is thinking</span>
+                      <span className="flex gap-1">
+                        <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
+                        <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
+                        <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-0.5">Processing your request...</p>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -905,20 +1034,30 @@ export default function AgentManager() {
         agent_id: agentId,
         name: sessionName || "New Session",
         description: "",
+        storage_type: "git",
         _rkwargs: true
       });
 
       // Extract readable name from session_id
       const extractedName = extractSessionName(session.session_id);
 
-      // Reload sessions to get the updated list with proper names
-      await loadSessions(agentId);
-
-      // Return session with extracted name
-      return {
+      // Build the processed session object
+      const processedSession = {
         ...session,
         name: extractedName
       };
+
+      // Update agentSessions state directly for immediate UI update
+      setAgentSessions(prev => ({
+        ...prev,
+        [agentId]: [...(prev[agentId] || []), processedSession]
+      }));
+
+      // Also reload sessions for the selected agent (for compatibility)
+      await loadSessions(agentId);
+
+      // Return session with extracted name
+      return processedSession;
     } catch (err) {
       console.error("Failed to create session:", err);
       alert(`Failed to create session: ${err}`);
@@ -1083,6 +1222,7 @@ export default function AgentManager() {
   // Handle URL query parameter for agent selection
   useEffect(() => {
     const agentIdFromUrl = searchParams.get('agent');
+    const sessionIdFromUrl = searchParams.get('session');
 
     // Only auto-select if we have agents loaded and URL has agent parameter
     if (agentIdFromUrl && agents.length > 0 && !selectedAgent) {
@@ -1097,6 +1237,33 @@ export default function AgentManager() {
             if (svc) {
               const fullAgent = await svc.get_agent({ agent_id: agentIdFromUrl, _rkwargs: true });
               setSelectedAgent(fullAgent);
+
+              // If session ID is in URL, load sessions and select the specified session
+              if (sessionIdFromUrl) {
+                const sessionList = await svc.list_sessions({ agent_id: agentIdFromUrl, _rkwargs: true });
+                const processedSessions = (sessionList || []).map((session: SessionInfo) => {
+                  if (!session.name || session.name === "New Session") {
+                    return { ...session, name: extractSessionName(session.session_id) };
+                  }
+                  return session;
+                });
+
+                // Update both session states
+                setSessions(processedSessions);
+                setAgentSessions(prev => ({ ...prev, [agentIdFromUrl]: processedSessions }));
+
+                // Find and select the target session
+                const targetSession = processedSessions.find((s: SessionInfo) => s.session_id === sessionIdFromUrl);
+                if (targetSession) {
+                  // Enable stateful mode and select session - order matters for useEffect trigger
+                  setIsStatefulMode(true);
+                  setExpandedAgents(prev => new Set(prev).add(agentIdFromUrl));
+                  // Use setTimeout to ensure state updates are processed before setting session
+                  setTimeout(() => {
+                    setSelectedSession(targetSession);
+                  }, 0);
+                }
+              }
             } else {
               setSelectedAgent(agentToSelect);
             }
@@ -1414,6 +1581,39 @@ export default function AgentManager() {
     }
   };
 
+  // Export conversation as JSON
+  const handleExportConversation = async () => {
+    if (!selectedSession || !server) return;
+
+    try {
+      const am = await server.getService("public/artifact-manager", { case_conversion: "camel" });
+      const artifact = await am.read(selectedSession.session_id, { _rkwargs: true });
+
+      // Create a downloadable JSON file
+      const exportData = {
+        session_id: selectedSession.session_id,
+        session_name: selectedSession.name,
+        agent_id: selectedSession.agent_id,
+        storage_type: selectedSession.storage_type,
+        exported_at: new Date().toISOString(),
+        manifest: artifact
+      };
+
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `conversation-${selectedSession.name || selectedSession.session_id.split('/').pop()}-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Failed to export conversation:", err);
+      alert(`Failed to export conversation: ${err}`);
+    }
+  };
+
   // Handle login
   const handleLogin = async () => {
     try {
@@ -1660,8 +1860,7 @@ export default function AgentManager() {
                               setIsStatefulMode(true);
                               setLogs([]);
                               setSearchParams({ agent: agent.agent_id, session: newSession.session_id });
-                              // Refresh sessions list
-                              await loadSessionsForAgent(agent.agent_id);
+                              // Note: handleCreateSession already updates agentSessions state directly
                             }
                           } catch (err) {
                             console.error('Failed to create session:', err);
@@ -1777,11 +1976,19 @@ export default function AgentManager() {
                           <div className={`w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 ${
                             selectedSession?.session_id === session.session_id ? 'bg-emerald-100' : 'bg-gray-100'
                           }`}>
-                            <svg className={`w-3.5 h-3.5 ${
-                              selectedSession?.session_id === session.session_id ? 'text-emerald-600' : 'text-gray-400'
-                            }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                            </svg>
+                            {session.storage_type === 'git' ? (
+                              <svg className={`w-3.5 h-3.5 ${
+                                selectedSession?.session_id === session.session_id ? 'text-emerald-600' : 'text-gray-400'
+                              }`} fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.438 9.8 8.205 11.385.6.11.82-.26.82-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.73.083-.73 1.205.085 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.108-.776.42-1.305.762-1.605-2.665-.305-5.467-1.334-5.467-5.93 0-1.31.468-2.382 1.235-3.22-.123-.304-.535-1.524.117-3.176 0 0 1.008-.322 3.3 1.23A11.5 11.5 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.29-1.553 3.297-1.23 3.297-1.23.653 1.652.241 2.872.118 3.176.77.838 1.234 1.91 1.234 3.22 0 4.61-2.807 5.624-5.479 5.92.43.37.814 1.102.814 2.222v3.293c0 .32.218.694.825.577C20.565 21.796 24 17.3 24 12c0-6.63-5.37-12-12-12z"/>
+                              </svg>
+                            ) : (
+                              <svg className={`w-3.5 h-3.5 ${
+                                selectedSession?.session_id === session.session_id ? 'text-emerald-600' : 'text-gray-400'
+                              }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                              </svg>
+                            )}
                           </div>
                           <span className="text-sm truncate flex-1 font-medium">{session.name}</span>
                           {/* Delete Session Button */}
@@ -1855,6 +2062,7 @@ export default function AgentManager() {
               setCopiedAgentId={setCopiedAgentId}
               onOpenArtifactDialog={() => setShowArtifactDialog(true)}
               onOpenHostingDialog={() => setShowHostingDialog(true)}
+              onExportConversation={handleExportConversation}
             />
             {/* Session Artifact Dialog */}
             {selectedSession && (
