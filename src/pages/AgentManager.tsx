@@ -846,6 +846,28 @@ function AgentInfoPanel({
                   onToggle={() => toggleLogExpanded(log.id)}
                 />
               ))}
+              {/* Thinking indicator when agent is working */}
+              {isExecuting && (
+                <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-indigo-500/10 to-cyan-500/10 border border-indigo-500/20 rounded-lg animate-pulse">
+                  <div className="flex items-center justify-center w-8 h-8 rounded-full bg-indigo-500/20">
+                    <svg className="w-4 h-4 text-indigo-400 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-indigo-400">Agent is thinking</span>
+                      <span className="flex gap-1">
+                        <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
+                        <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
+                        <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-0.5">Processing your request...</p>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
