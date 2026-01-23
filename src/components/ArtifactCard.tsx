@@ -68,16 +68,6 @@ export const ArtifactCard: React.FC<ResourceCardProps> = ({ artifact }) => {
     checkEditPermissions();
   }, [isLoggedIn, user, artifactManager]);
 
-  const nextImage = (e: React.MouseEvent) => {
-    e.preventDefault(); // Prevent Link navigation
-    setCurrentImageIndex((prev) => (prev + 1) % covers.length);
-  };
-
-  const previousImage = (e: React.MouseEvent) => {
-    e.preventDefault(); // Prevent Link navigation
-    setCurrentImageIndex((prev) => (prev - 1 + covers.length) % covers.length);
-  };
-
   const handleClick = (e: React.MouseEvent) => {
     // Only navigate if the click target is the card itself, not children
     // if (e.target === e.currentTarget) {
@@ -93,7 +83,7 @@ export const ArtifactCard: React.FC<ResourceCardProps> = ({ artifact }) => {
   };
 
   // Copy handlers for buttons
-  const copyMcp = (artifactId: string) => async (e: React.MouseEvent) => {
+  const copyMcp = (artifactType: string, artifactId: string) => async (e: React.MouseEvent) => {
     e.stopPropagation();
     
     // If we have a generated URL (fallback for browsers that block async clipboard write)
@@ -111,7 +101,9 @@ export const ArtifactCard: React.FC<ResourceCardProps> = ({ artifact }) => {
 
     try {
       setMcpLoading(true);
-      const mcpUrl = await composeMcpService([artifactId]);
+      const mcpUrl = artifactType === 'dataset'
+        ? `https://hypha.aicell.io/24agents-science/artifacts/${artifactId.split('/').pop()}`
+        : await composeMcpService([artifactId]);
       
       try {
         await navigator.clipboard.writeText(mcpUrl);
@@ -375,7 +367,7 @@ export const ArtifactCard: React.FC<ResourceCardProps> = ({ artifact }) => {
             </div>
             <div className="flex items-center gap-1">
               <Button 
-                onClick={copyMcp(artifact.id)}
+                onClick={copyMcp(artifact.manifest.type, artifact.id)}
                 size="small"
                 variant="outlined"
                 color={generatedMcpUrl ? "primary" : "primary"}

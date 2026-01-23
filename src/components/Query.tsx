@@ -6,7 +6,7 @@ import { hyphaWebsocketClient } from 'hypha-rpc';
 
 const SCHEMAS = {
     searchItems: {
-        name: "searchItems",
+        name: "search_items",
         description: "Search for tools and artifacts in the gallery.",
         parameters: {
             type: "object",
@@ -20,7 +20,7 @@ const SCHEMAS = {
         }
     },
     composeMcp: {
-        name: "composeMcp",
+        name: "compose_mcp",
         description: "Compose selected tools into a new MCP service.",
         parameters: {
             type: "object",
@@ -38,9 +38,7 @@ const SCHEMAS = {
 
 const searchItems = async (query: string) => {
     try {
-        const itemsPerPage = 100;
-        const offset = 0;
-        let url = `https://hypha.aicell.io/24agents-science/artifacts/24agents.science/children?pagination=true&offset=${offset}&limit=${itemsPerPage}&stage=false&order_by=manifest.score`;
+        let url = `https://hypha.aicell.io/24agents-science/artifacts/24agents.science/children?stage=false`;
 
         if (query) {
             const keywords = query.split(' ').map(k => k.trim());
@@ -175,10 +173,11 @@ const Query: React.FC<{ serviceId?: string }> = ({ serviceId: customServiceId })
         if (!server || !isConnected) return;
 
         const registerQueryService = async () => {
+            const serviceId = customServiceId || `query-service-${Math.random().toString(36).substring(2, 9)}`;
 
             try {
                 await server.registerService({
-                    id: customServiceId || 'query-service',
+                    id: serviceId,
                     type: 'query-service',
                     config: {
                         visibility: 'public',
@@ -189,7 +188,7 @@ const Query: React.FC<{ serviceId?: string }> = ({ serviceId: customServiceId })
                 }, { overwrite: true });
 
                 const serverUrl = server.config.public_base_url || server.config.server_url || 'https://hypha.aicell.io';
-                const builtServiceUrl = `${serverUrl}/${server.config.workspace}/services/${customServiceId}`;
+                const builtServiceUrl = `${serverUrl}/${server.config.workspace}/services/${serviceId}`;
                 const mcp = builtServiceUrl.replace('/services/', '/mcp/') + '/mcp';
 
                 if (mounted) {
