@@ -144,7 +144,8 @@ export const ArtifactGrid: React.FC<ResourceGridProps> = ({ type }) => {
       'datasets': 'dataset',
       'applications': 'application',
       'notebooks': 'notebook',
-      'agents': 'agent'
+      'agents': 'agent',
+      'tools': 'tool',
     };
     return typeMap[path] || null;
   }, [location.pathname]);
