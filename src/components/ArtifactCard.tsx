@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { Card, CardMedia, CardContent, IconButton, Button } from '@mui/material';
+import { Card, CardMedia, CardContent, IconButton, Button, CircularProgress } from '@mui/material';
 import DownloadIcon from '@mui/icons-material/Download';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import VisibilityIcon from '@mui/icons-material/Visibility';
@@ -10,10 +10,11 @@ import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 
 import { resolveHyphaUrl } from '../utils/urlHelpers';
-import { ArtifactInfo, TestReport } from '../types/artifact';
+import { ArtifactInfo } from '../types/artifact';
 import { PreviewDialog } from './PreviewDialog';
 import { useHyphaStore } from '../store/hyphaStore';
 import TestReportBadge from './TestReportBadge';
+import { composeMcpService } from '../utils/mcpUtils';
 
 interface ResourceCardProps {
   artifact: ArtifactInfo;
@@ -24,7 +25,9 @@ export const ArtifactCard: React.FC<ResourceCardProps> = ({ artifact }) => {
   const covers = artifact.manifest.covers || [];
   const navigate = useNavigate();
   // Feedback for MCP copy action
+  const [mcpLoading, setMcpLoading] = useState(false);
   const [mcpCopied, setMcpCopied] = useState(false);
+  const [generatedMcpUrl, setGeneratedMcpUrl] = useState<string | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [canEdit, setCanEdit] = useState(false);
 
@@ -90,15 +93,40 @@ export const ArtifactCard: React.FC<ResourceCardProps> = ({ artifact }) => {
   };
 
   // Copy handlers for buttons
-  const copyMcp = (e: React.MouseEvent) => {
+  const copyMcp = (artifactId: string) => async (e: React.MouseEvent) => {
     e.stopPropagation();
-    const mcpUrl = 'https://hypha.aicell.io/hypha-agents/mcp/biomni/mcp';
-    navigator.clipboard.writeText(mcpUrl)
-      .then(() => {
+    
+    // If we have a generated URL (fallback for browsers that block async clipboard write)
+    if (generatedMcpUrl) {
+      try {
+        await navigator.clipboard.writeText(generatedMcpUrl);
+        setMcpCopied(true);
+        setGeneratedMcpUrl(null);
+        setTimeout(() => setMcpCopied(false), 2000);
+      } catch (err) {
+        console.error('Failed to copy generated URL', err);
+      }
+      return;
+    }
+
+    try {
+      setMcpLoading(true);
+      const mcpUrl = await composeMcpService([artifactId]);
+      
+      try {
+        await navigator.clipboard.writeText(mcpUrl);
         setMcpCopied(true);
         setTimeout(() => setMcpCopied(false), 2000);
-      })
-      .catch(err => console.error('Failed to copy MCP URL', err));
+      } catch (writeErr) {
+        // Fallback: If clipboard write fails (e.g. NotAllowedError), save URL and let user click again
+        console.log('Async clipboard write failed, switching to manual confirmation', writeErr);
+        setGeneratedMcpUrl(mcpUrl);
+      }
+    } catch (err) {
+      console.error('Failed to copy MCP URL', err);
+    } finally {
+      setMcpLoading(false);
+    }
   };
 
   const handlePreviewOpen = (e: React.MouseEvent) => {
@@ -253,68 +281,70 @@ export const ArtifactCard: React.FC<ResourceCardProps> = ({ artifact }) => {
         onClose={handlePreviewClose}
       />
 
-      <div style={{ position: 'relative', paddingTop: '56.25%', borderRadius: '16px 16px 0 0', overflow: 'hidden' }}> {/* 16:9 aspect ratio container */}
-        {covers.length > 0 ? (
-          <CardMedia
-            onClick={handleClick}
-            component="img"
-            image={getCurrentCoverUrl()}
-            alt={artifact.manifest.name}
-            sx={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover',
-              transition: 'transform 0.3s ease',
-              '&:hover': {
-                transform: 'scale(1.02)',
-              }
-            }}
-          />
-        ) : (
-          <div
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              width: '100%',
-              height: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              backgroundColor: 'rgba(249, 250, 251, 0.8)',
-              backdropFilter: 'blur(4px)',
-            }}
-          >
-            {artifact.manifest.icon ? (
-              <img
-                src={artifact.manifest.icon}
-                alt={artifact.manifest.name}
-                style={{
-                  width: '40%',
-                  height: '40%',
-                  objectFit: 'contain'
-                }}
-              />
-            ) : artifact.manifest.id_emoji ? (
-              <span style={{ fontSize: '3rem' }}>{artifact.manifest.id_emoji}</span>
-            ) : (
-              <div className="w-16 h-16 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full" />
-            )}
-          </div>
-        )}
+      {covers.length > 0 || artifact.manifest.icon || artifact.manifest.id_emoji ? (
+        <div style={{ position: 'relative', paddingTop: '56.25%', borderRadius: '16px 16px 0 0', overflow: 'hidden' }}> {/* 16:9 aspect ratio container */}
+          {covers.length > 0 ? (
+            <CardMedia
+              onClick={handleClick}
+              component="img"
+              image={getCurrentCoverUrl()}
+              alt={artifact.manifest.name}
+              sx={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                transition: 'transform 0.3s ease',
+                '&:hover': {
+                  transform: 'scale(1.02)',
+                }
+              }}
+            />
+          ) : (
+            <div
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: 'rgba(249, 250, 251, 0.8)',
+                backdropFilter: 'blur(4px)',
+              }}
+            >
+              {artifact.manifest.icon ? (
+                <img
+                  src={artifact.manifest.icon}
+                  alt={artifact.manifest.name}
+                  style={{
+                    width: '40%',
+                    height: '40%',
+                    objectFit: 'contain'
+                  }}
+                />
+              ) : artifact.manifest.id_emoji ? (
+                <span style={{ fontSize: '3rem' }}>{artifact.manifest.id_emoji}</span>
+              ) : (
+                <div className="w-16 h-16 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full" />
+              )}
+            </div>
+          )}
 
-        {/* Test Report Badge */}
-        <TestReportBadge
-          artifact={artifact}
-          mode="floating"
-          size="medium"
-          showPopover={true}
-          onStopPropagation={true}
-        />
-      </div>
+          {/* Test Report Badge */}
+        </div>
+      ) : null}
+      <TestReportBadge
+        artifact={artifact}
+        mode="floating"
+        size="medium"
+        showPopover={true}
+        onStopPropagation={true}
+      />
       <CardContent sx={{ flexGrow: 1, p: 2 }} onClick={handleClick}>
         <div className="space-y-2">
           <div className="flex items-center gap-2">
@@ -345,18 +375,26 @@ export const ArtifactCard: React.FC<ResourceCardProps> = ({ artifact }) => {
             </div>
             <div className="flex items-center gap-1">
               <Button 
-                onClick={copyMcp}
+                onClick={copyMcp(artifact.id)}
                 size="small"
                 variant="outlined"
-                startIcon={<ContentCopyIcon sx={{ fontSize: 14 }} />}
+                color={generatedMcpUrl ? "primary" : "primary"}
+                startIcon={mcpLoading ? <CircularProgress size={14} color="inherit" /> : <ContentCopyIcon sx={{ fontSize: 14 }} />}
+                disabled={mcpLoading}
                 sx={{
                   borderRadius: '8px',
                   textTransform: 'none',
                   paddingY: '2px',
                   paddingX: '8px',
+                  ...( generatedMcpUrl && {
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    borderColor: 'rgba(59, 130, 246, 0.5)',
+                  })
                 }}
               >
-                Copy MCP
+                {mcpLoading ? 'Generating...' : 
+                 generatedMcpUrl ? 'Click to Copy' :
+                 'Copy MCP'}
               </Button>
               {mcpCopied && (
                 <span className="text-green-600 ml-1 font-medium">Copied!</span>
@@ -430,4 +468,4 @@ export const ArtifactCard: React.FC<ResourceCardProps> = ({ artifact }) => {
   );
 };
 
-export default ArtifactCard; 
+export default ArtifactCard;

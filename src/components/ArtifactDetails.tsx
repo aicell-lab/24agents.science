@@ -447,7 +447,11 @@ const ArtifactDetails = () => {
           />
           <CopyableInline 
             label="MCP" 
-            value={"https://hypha.aicell.io/hypha-agents/mcp/biomni/mcp"} 
+            value={
+              manifest.type === 'dataset'
+                ? `https://hypha.aicell.io/24agents-science/artifacts/${selectedResource.id.split('/').pop()}`
+                : "https://hypha.aicell.io/hypha-agents/mcp/biomni/mcp"
+            } 
             copyTitle="Copy MCP URL" 
           />
         </Typography>

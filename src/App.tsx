@@ -82,7 +82,7 @@ const AppContent: React.FC = () => {
           />
           <Route path="/tools" element={<ArtifactGrid type="tool" />} />
           <Route path="/agents" element={<ArtifactGrid type="agent" />} />
-          <Route path="/query" element={<Query />} />
+          <Route path="/query" element={<Query serviceId='query-service' />} />
           <Route path="/datasets" element={<ArtifactGrid type="datasets" />} />
           <Route path="/datasets/:datasetId" element={<DatasetDashboard />} />
           <Route path="/upload" element={<Upload />} />

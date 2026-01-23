@@ -157,34 +157,39 @@ const composeMcp = async (toolIds: string[]) => {
     return mcpUrl;
 };
 
-const Query: React.FC = () => {
-    const { server, isConnected } = useHyphaStore();
+const Query: React.FC<{ serviceId?: string }> = ({ serviceId: customServiceId }) => {
+    const { server, isConnected, connect, isConnecting } = useHyphaStore();
     const [mcpUrl, setMcpUrl] = useState<string>('');
     const [status, setStatus] = useState<string>('Initializing...');
     const [snackbarOpen, setSnackbarOpen] = useState(false);
     const [snackbarMessage, setSnackbarMessage] = useState('');
 
     useEffect(() => {
+        if (!server && !isConnected && !isConnecting) {
+            connect({ server_url: 'https://hypha.aicell.io' });
+        }
+    }, [server, isConnected, isConnecting, connect]);
+
+    useEffect(() => {
         let mounted = true;
         if (!server || !isConnected) return;
 
         const registerQueryService = async () => {
-            const serviceId = `query-service-${Math.random().toString(36).substring(7)}`;
 
             try {
                 await server.registerService({
-                    id: serviceId,
+                    id: customServiceId || 'query-service',
                     type: 'query-service',
                     config: {
                         visibility: 'public',
-                        require_context: true
+                        require_context: true,
                     },
                     searchItems: Object.assign(searchItems, { __schema__: SCHEMAS.searchItems }),
                     composeMcp: Object.assign(composeMcp, { __schema__: SCHEMAS.composeMcp })
-                });
+                }, { overwrite: true });
 
                 const serverUrl = server.config.public_base_url || server.config.server_url || 'https://hypha.aicell.io';
-                const builtServiceUrl = `${serverUrl}/${server.config.workspace}/services/${serviceId}`;
+                const builtServiceUrl = `${serverUrl}/${server.config.workspace}/services/${customServiceId}`;
                 const mcp = builtServiceUrl.replace('/services/', '/mcp/') + '/mcp';
 
                 if (mounted) {
@@ -202,7 +207,7 @@ const Query: React.FC = () => {
         return () => {
             mounted = false;
         };
-    }, [server, isConnected]);
+    }, [server, isConnected, isConnecting, customServiceId]);
 
     const handleCopyUrl = () => {
         if (mcpUrl) {

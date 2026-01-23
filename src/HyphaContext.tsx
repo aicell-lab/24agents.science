@@ -26,6 +26,10 @@ interface WindowConfig {
 
 const HyphaContext = createContext<HyphaContextType | undefined>(undefined);
 
+// Singleton promise to prevent double initialization in StrictMode
+let hyphaInitPromise: Promise<any> | null = null;
+let hyphaApiInstance: any | null = null;
+
 export function useHyphaContext() {
   const context = useContext(HyphaContext);
   if (context === undefined) {
@@ -42,18 +46,51 @@ export function HyphaProvider({ children }: { children: React.ReactNode }) {
   // Initialize hypha-core
   useEffect(() => {
     const initHyphaCore = async () => {
-      try {
-        // Initialize HyphaCore
-        const hyphaCore = new HyphaCore();
-        // Start hypha-core and get the API
-        const api = await hyphaCore.start();
-        
-        setHyphaCoreAPI(api);
+      // If we already have the API instance, just use it
+      if (hyphaApiInstance) {
+        setHyphaCoreAPI(hyphaApiInstance);
         setIsHyphaCoreReady(true);
-        console.log("HyphaCore initialized successfully");
-      } catch (error) {
-        console.error("Failed to initialize HyphaCore:", error);
+        return;
       }
+
+      // If initialization is already in progress, wait for it
+      if (hyphaInitPromise) {
+        try {
+          const api = await hyphaInitPromise;
+          setHyphaCoreAPI(api);
+          setIsHyphaCoreReady(true);
+        } catch (err) {
+          console.error("Failed to await existing HyphaCore initialization:", err);
+        }
+        return;
+      }
+
+      // Start new initialization
+      hyphaInitPromise = (async () => {
+        try {
+          // Initialize HyphaCore
+          const hyphaCore = new HyphaCore();
+          // Start hypha-core and get the API
+          const api = await hyphaCore.start();
+          
+          hyphaApiInstance = api;
+          setHyphaCoreAPI(api);
+          setIsHyphaCoreReady(true);
+          console.log("HyphaCore initialized successfully");
+          return api;
+        } catch (error: any) {
+          // Handle "Server already running" specifically
+          if (error?.toString().includes("Server already running")) {
+            console.log("HyphaCore server already running (reusing existing connection)");
+            setIsHyphaCoreReady(true);
+            // We might miss the API object here if we can't retrieve it, 
+            // but at least we don't crash.
+            return null;
+          }
+          console.error("Failed to initialize HyphaCore:", error);
+          throw error;
+        }
+      })();
     };
     
     // Helper function to load scripts

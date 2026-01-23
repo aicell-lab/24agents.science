@@ -29,7 +29,7 @@ const footerLinks = [
   },
   {
     label: "Github Repository",
-    href: "https://github.com/aicell-lab/24agents.science/24agents.science",
+    href: "https://github.com/aicell-lab/24agents.science",
     icon: "/static/img/github.png",
     caption: "Source Code"
   }
@@ -170,7 +170,7 @@ const Footer: React.FC = () => {
                 
                 <div className="mt-4">
                   <a 
-                    href="https://github.com/aicell-lab/24agents.science/24agents.science/issues" 
+                    href="https://github.com/aicell-lab/24agents.science/issues" 
                     target="_blank" 
                     rel="noopener noreferrer"
                     className="inline-block bg-gray-600 text-white px-6 py-2 rounded-lg hover:bg-gray-700 transition-colors duration-300 font-medium"
