@@ -7,7 +7,21 @@ import { hyphaWebsocketClient } from 'hypha-rpc';
 const SCHEMAS = {
     searchItems: {
         name: "search_items",
-        description: "Search for tools and artifacts in the gallery.",
+        description: `Search for tools and artifacts in the gallery. You can search by name,
+            description, and tag. Example queries: 'mass spectrometry', 'gene expression', 'cancer'.
+            Supported tags include:
+            annotation, antibody, apache-arrow, api, assay, association, atlas, bacteria,
+            biochemistry, bioengineering, biology, biomni, biotechnology, browser-ready, cancer,
+            cancer_biology, cell, cell-line, cell_biology, cellular, census, columnar, compound,
+            csv, data, database, datalake, dataset, dependency, depmap, design, diagnosis,
+            disease, dna, drug, engineering, enrichment, enzyme, gene-disease, gene-ontology,
+            gene-set, genetics, genome, go, heredity, immune, immunology, interaction, json,
+            literature, medicine, microbe, microbiology, mirna, modeling, molecular,
+            molecular-biology, molecular_biology, network, oncology, parquet, pathology, pathway,
+            pharmacology, pickle, pkl, plain-text, protein, pubmed, pyodide-compatible,
+            pyodide-incompatible, python, python-object, regulation, research, rna, science,
+            screening, server-only, single-cell, structured, synthetic, synthetic_biology,
+            systems, systems_biology, tabular, text, tool, txt, virus`,
         parameters: {
             type: "object",
             properties: {
@@ -38,7 +52,7 @@ const SCHEMAS = {
 
 const searchItems = async (query: string) => {
     try {
-        let url = `https://hypha.aicell.io/24agents-science/artifacts/24agents.science/children?stage=false`;
+        let url = `https://hypha.aicell.io/24agents-science/artifacts/24agents.science/children?stage=false&order_by=manifest.score>`;
 
         if (query) {
             const keywords = query.split(' ').map(k => k.trim());
