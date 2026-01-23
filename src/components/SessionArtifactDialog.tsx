@@ -59,7 +59,8 @@ export default function SessionArtifactDialog({
         try {
           const artifact = await artifactManager.read(sessionId, { stage: true, _rkwargs: true });
           setCurrentArtifact(artifact);
-          await loadFiles("");
+          const isStaged = artifact?.staging !== null;
+          await loadFiles("", isStaged);
         } catch (err) {
           console.error("Failed to load artifact:", err);
         }
@@ -131,7 +132,7 @@ export default function SessionArtifactDialog({
 
       setSelectedFiles(new Set());
       setIsSelectionMode(false);
-      await loadFiles("");
+      await loadFiles("", canUpload);
       setExpandedDirs({});
       setStatusMessage({ type: 'success', text: `Deleted ${selectedFiles.size} item(s)` });
       setTimeout(() => setStatusMessage(null), 3000);
@@ -144,7 +145,7 @@ export default function SessionArtifactDialog({
     }
   };
 
-  const loadFiles = async (path: string = "") => {
+  const loadFiles = async (path: string = "", isStaged?: boolean) => {
     if (!artifactManager) return [];
 
     setLoading(true);
@@ -152,7 +153,7 @@ export default function SessionArtifactDialog({
       const fileList = await artifactManager.listFiles({
         artifact_id: sessionId,
         dir_path: path || undefined,
-        stage: true,
+        stage: isStaged ?? false,
         _rkwargs: true
       });
 
@@ -201,7 +202,7 @@ export default function SessionArtifactDialog({
         _rkwargs: true
       });
 
-      await loadFiles("");
+      await loadFiles("", canUpload);
       setExpandedDirs({});
     } catch (err) {
       console.error("Failed to delete:", err);
@@ -240,7 +241,8 @@ export default function SessionArtifactDialog({
       const updatedArtifact = await artifactManager.read(sessionId, { stage: false, _rkwargs: true });
       setCurrentArtifact(updatedArtifact);
 
-      await loadFiles("");
+      // After commit, artifact is no longer staged
+      await loadFiles("", false);
       setExpandedDirs({});
       setStatusMessage({ type: 'success', text: 'Changes committed successfully' });
       setTimeout(() => setStatusMessage(null), 3000);
@@ -265,7 +267,8 @@ export default function SessionArtifactDialog({
       const updatedArtifact = await artifactManager.read(sessionId, { stage: false, _rkwargs: true });
       setCurrentArtifact(updatedArtifact);
 
-      await loadFiles("");
+      // After discard, artifact is no longer staged
+      await loadFiles("", false);
       setExpandedDirs({});
       setStatusMessage({ type: 'success', text: 'Changes discarded' });
       setTimeout(() => setStatusMessage(null), 3000);
@@ -313,7 +316,7 @@ export default function SessionArtifactDialog({
         setUploadProgress((completedCount / fileArray.length) * 100);
       }
 
-      await loadFiles("");
+      await loadFiles("", canUpload);
       setExpandedDirs({});
       setStatusMessage({ type: 'success', text: `Uploaded ${files.length} file(s)` });
       setTimeout(() => setStatusMessage(null), 5000);
@@ -351,7 +354,7 @@ export default function SessionArtifactDialog({
         body: new Blob([''], { type: 'text/plain' }),
       });
 
-      await loadFiles("");
+      await loadFiles("", canUpload);
       setExpandedDirs({});
     } catch (err) {
       console.error("Failed to create folder:", err);
@@ -414,7 +417,7 @@ export default function SessionArtifactDialog({
       delete newExpanded[fullPath];
       setExpandedDirs(newExpanded);
     } else {
-      const children = await loadFiles(fullPath);
+      const children = await loadFiles(fullPath, canUpload);
       setExpandedDirs({ ...expandedDirs, [fullPath]: children });
     }
   };
