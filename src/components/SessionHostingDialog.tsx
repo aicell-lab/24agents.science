@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useHyphaStore } from "../store/hyphaStore";
+import { withHyphaService, getStoredToken, DEFAULT_SERVER_URL } from "../utils/hyphaConnection";
 
 interface SessionHostingDialogProps {
   sessionId: string;
@@ -14,8 +15,7 @@ export default function SessionHostingDialog({
   isOpen,
   onClose,
 }: SessionHostingDialogProps) {
-  const { server } = useHyphaStore();
-  const [artifactManager, setArtifactManager] = useState<any>(null);
+  const { isLoggedIn } = useHyphaStore();
   const [currentArtifact, setCurrentArtifact] = useState<any>(null);
   const [operationLoading, setOperationLoading] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
@@ -24,27 +24,17 @@ export default function SessionHostingDialog({
   const [staticHostingEnabled, setStaticHostingEnabled] = useState(false);
   const [rootDirectory, setRootDirectory] = useState("/");
 
-  // Get artifact manager service
-  useEffect(() => {
-    const getAM = async () => {
-      if (server) {
-        try {
-          const am = await server.getService("public/artifact-manager", { case_conversion: "camel" });
-          setArtifactManager(am);
-        } catch (err) {
-          console.error("Failed to get artifact manager:", err);
-        }
-      }
-    };
-    getAM();
-  }, [server]);
-
   // Load artifact info when dialog opens
   useEffect(() => {
     const loadArtifact = async () => {
-      if (isOpen && artifactManager) {
+      if (isOpen && isLoggedIn) {
         try {
-          const artifact = await artifactManager.read(sessionId, { stage: true, _rkwargs: true });
+          const token = getStoredToken();
+          const artifact = await withHyphaService(
+            "public/artifact-manager",
+            async (am) => am.read(sessionId, { stage: true, _rkwargs: true }),
+            { token: token ?? undefined, serviceOptions: { case_conversion: "camel" } }
+          );
           setCurrentArtifact(artifact);
 
           const viewConfig = artifact?.config?.view_config;
@@ -61,10 +51,10 @@ export default function SessionHostingDialog({
       }
     };
     loadArtifact();
-  }, [isOpen, artifactManager, sessionId]);
+  }, [isOpen, isLoggedIn, sessionId]);
 
   const handleSaveStaticHosting = async () => {
-    if (!artifactManager || operationLoading) return;
+    if (operationLoading) return;
 
     try {
       setOperationLoading('save-hosting');
@@ -72,12 +62,18 @@ export default function SessionHostingDialog({
         root_directory: rootDirectory || "/",
       } : null;
 
-      await artifactManager.edit(sessionId, {
-        config: { view_config },
-        _rkwargs: true
-      });
-
-      const updatedArtifact = await artifactManager.read(sessionId, { stage: true, _rkwargs: true });
+      const token = getStoredToken();
+      const updatedArtifact = await withHyphaService(
+        "public/artifact-manager",
+        async (am) => {
+          await am.edit(sessionId, {
+            config: { view_config },
+            _rkwargs: true
+          });
+          return await am.read(sessionId, { stage: true, _rkwargs: true });
+        },
+        { token: token ?? undefined, serviceOptions: { case_conversion: "camel" } }
+      );
       setCurrentArtifact(updatedArtifact);
 
       setStatusMessage({ type: 'success', text: 'Hosting configuration saved' });
@@ -92,7 +88,7 @@ export default function SessionHostingDialog({
   };
 
   const handleCopyPreviewUrl = () => {
-    if (!server || !currentArtifact) return;
+    if (!currentArtifact) return;
 
     const previewUrl = getPreviewUrl();
     navigator.clipboard.writeText(previewUrl);
@@ -101,14 +97,11 @@ export default function SessionHostingDialog({
   };
 
   const getPreviewUrl = () => {
-    if (!server) return "";
-
-    const serverUrl = server.config.public_base_url || server.config.server_url;
     const parts = sessionId.split('/');
     if (parts.length !== 2) return "";
 
     const [workspace, artifactAlias] = parts;
-    return `${serverUrl}/${workspace}/view/${artifactAlias}/`;
+    return `${DEFAULT_SERVER_URL}/${workspace}/view/${artifactAlias}/`;
   };
 
   if (!isOpen) return null;

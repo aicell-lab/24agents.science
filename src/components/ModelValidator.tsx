@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useHyphaStore } from '../store/hyphaStore';
+import { withHyphaConnection, getStoredToken } from '../utils/hyphaConnection';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Menu } from '@headlessui/react';
@@ -23,13 +24,13 @@ interface ModelValidatorProps {
   onValidationComplete?: (result: ValidationResult) => void;
 }
 
-const ModelValidator: React.FC<ModelValidatorProps> = ({ 
-  rdfContent, 
-  isDisabled, 
+const ModelValidator: React.FC<ModelValidatorProps> = ({
+  rdfContent,
+  isDisabled,
   className = '',
-  onValidationComplete 
+  onValidationComplete
 }) => {
-  const { server, isLoggedIn, user } = useHyphaStore();
+  const { isLoggedIn, user } = useHyphaStore();
   const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -60,23 +61,21 @@ const ModelValidator: React.FC<ModelValidatorProps> = ({
   }, []);
 
   const handleValidate = async () => {
-    if (!rdfContent || !server || !user?.email) return;
+    if (!rdfContent || !user?.email) return;
 
     setIsLoading(true);
     setIsMenuOpen(false);
-    
+
     try {
-      // const runner = await server.getService('24agents-science/bioimageio-model-runner', {mode: "last"});
-      const runner = await server.getService('24agents-science/model-runner', {mode: "select:min:get_load"});
       // Parse the RDF content and assert its type
       let rdfDict = yaml.load(rdfContent) as RdfWithUploader | null;
-      
+
       // Ensure rdfDict is an object before modifying
       if (typeof rdfDict === 'object' && rdfDict !== null) {
         // Automatically set the uploader email
         rdfDict.uploader = {
           ...(rdfDict.uploader || {}), // Preserve existing uploader fields if any
-          email: user.email 
+          email: user.email
         };
       } else {
         // Handle cases where rdfContent might not parse to an object
@@ -93,9 +92,13 @@ const ModelValidator: React.FC<ModelValidatorProps> = ({
         return; // Stop validation if RDF is invalid
       }
 
-      const result = await runner.validate({rdf_dict: rdfDict, _rkwargs: true}); // Pass the modified dictionary
+      const token = getStoredToken();
+      const result = await withHyphaConnection(async (server) => {
+        const runner = await server.getService('24agents-science/model-runner', {mode: "select:min:get_load"});
+        return await runner.validate({rdf_dict: rdfDict, _rkwargs: true});
+      }, { token: token ?? undefined });
       console.log("Validation result:", result);
-      
+
       setValidationResult(result);
       setIsMenuOpen(true);
       onValidationComplete?.(result);

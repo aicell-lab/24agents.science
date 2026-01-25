@@ -1,7 +1,10 @@
 import { create } from 'zustand';
 import { hyphaWebsocketClient } from 'hypha-rpc';
 // import { hRPC } from 'hypha';
-import { ArtifactInfo } from '../types/artifact';;
+import { ArtifactInfo } from '../types/artifact';
+import { withHyphaConnection, withHyphaService, getStoredToken } from '../utils/hyphaConnection';
+
+const DEFAULT_SERVER_URL = 'https://hypha.aicell.io';
 
 
 // Add a type for connection config
@@ -338,51 +341,51 @@ export const useHyphaStore = create<HyphaState>((set, get) => ({
     return get().selectedArtifacts.includes(artifactId);
   },
   getUserWorkspace: async () => {
-    const { server, user } = get();
-    if (!user || !server) {
-      throw new Error("Not connected to server or not logged in");
+    const { user } = get();
+    if (!user) {
+      throw new Error("Not logged in");
     }
     // Return user's workspace ID
     return user.id || user.sub || user.email;
   },
   createArtifact: async (manifest: any, collection: string, stage: boolean = false, alias?: string, config?: any) => {
-    const { server } = get();
-    if (!server) {
-      throw new Error("Not connected to server");
-    }
-    const artifactManager = await server.getService("public/artifact-manager");
-    return await artifactManager.create({
-      manifest,
-      collection,
-      stage,
-      alias,
-      config,
-      _rkwargs: true
-    });
+    const token = getStoredToken();
+    return await withHyphaService('public/artifact-manager', async (artifactManager) => {
+      return await artifactManager.create({
+        manifest,
+        collection,
+        stage,
+        alias,
+        config,
+        _rkwargs: true
+      });
+    }, { token: token ?? undefined });
   },
   getService: async (serviceId: string, options?: any) => {
-    const { server } = get();
-    if (!server) {
-      throw new Error("Not connected to server");
-    }
-    return await server.getService(serviceId, options);
+    const token = getStoredToken();
+    return await withHyphaConnection(async (server) => {
+      return await server.getService(serviceId, options);
+    }, { token: token ?? undefined });
   },
   listMyRunningDatasetServices: async () => {
-    const { server, user } = get();
-    if (!server || !user) {
-      throw new Error("Not connected to server or not logged in");
+    const { user } = get();
+    if (!user) {
+      throw new Error("Not logged in");
     }
 
     try {
-      const services = await server.listServices({ visibility: "public" });
+      const token = getStoredToken();
+      return await withHyphaConnection(async (server) => {
+        const services = await server.listServices({ visibility: "public" });
 
-      // Filter for dataset services created by this user
-      const datasetServices = services.filter((s: any) => {
-        return s.service_schema?.is_dataset_service &&
-               s.config?.created_by === user.id;
-      });
+        // Filter for dataset services created by this user
+        const datasetServices = services.filter((s: any) => {
+          return s.service_schema?.is_dataset_service &&
+                 s.config?.created_by === user.id;
+        });
 
-      return datasetServices;
+        return datasetServices;
+      }, { token: token ?? undefined });
     } catch (error) {
       console.error("Failed to list running dataset services:", error);
       return [];
@@ -407,59 +410,50 @@ export const useHyphaStore = create<HyphaState>((set, get) => ({
     return null;
   },
   getArtifactManager: async () => {
-    const { server } = get();
-    if (!server) {
-      throw new Error("Not connected to server");
-    }
-    return await server.getService("public/artifact-manager");
+    const token = getStoredToken();
+    return await withHyphaConnection(async (server) => {
+      return await server.getService("public/artifact-manager");
+    }, { token: token ?? undefined });
   },
   readArtifact: async (artifactId: string) => {
-    const { server } = get();
-    if (!server) {
-      throw new Error("Not connected to server");
-    }
-    const artifactManager = await server.getService("public/artifact-manager");
-    return await artifactManager.read({ artifact_id: artifactId, _rkwargs: true });
+    const token = getStoredToken();
+    return await withHyphaService('public/artifact-manager', async (artifactManager) => {
+      return await artifactManager.read({ artifact_id: artifactId, _rkwargs: true });
+    }, { token: token ?? undefined });
   },
   listArtifacts: async (collection: string, filters?: any) => {
-    const { server } = get();
-    if (!server) {
-      throw new Error("Not connected to server");
-    }
-    const artifactManager = await server.getService("public/artifact-manager");
-    return await artifactManager.list({
-      collection,
-      filters,
-      _rkwargs: true
-    });
-  },
-  putArtifactFile: async (artifactId: string, filename: string, content: string) => {
-    const { server } = get();
-    if (!server) {
-      throw new Error("Not connected to server");
-    }
-    const artifactManager = await server.getService("public/artifact-manager");
-    await artifactManager.put_file({
-      artifact_id: artifactId,
-      file_path: filename,
-      content: content,
-      _rkwargs: true
-    });
-  },
-  getEvents: async (eventType: string, limit: number, offset: number) => {
-    const { server } = get();
-    if (!server) {
-      throw new Error("Not connected to server");
-    }
-
-    try {
-      const events = await server.get_events({
-        type: eventType,
-        limit,
-        offset,
+    const token = getStoredToken();
+    return await withHyphaService('public/artifact-manager', async (artifactManager) => {
+      return await artifactManager.list({
+        collection,
+        filters,
         _rkwargs: true
       });
-      return events || [];
+    }, { token: token ?? undefined });
+  },
+  putArtifactFile: async (artifactId: string, filename: string, content: string) => {
+    const token = getStoredToken();
+    return await withHyphaService('public/artifact-manager', async (artifactManager) => {
+      await artifactManager.put_file({
+        artifact_id: artifactId,
+        file_path: filename,
+        content: content,
+        _rkwargs: true
+      });
+    }, { token: token ?? undefined });
+  },
+  getEvents: async (eventType: string, limit: number, offset: number) => {
+    try {
+      const token = getStoredToken();
+      return await withHyphaConnection(async (server) => {
+        const events = await server.get_events({
+          type: eventType,
+          limit,
+          offset,
+          _rkwargs: true
+        });
+        return events || [];
+      }, { token: token ?? undefined });
     } catch (error) {
       console.error("Failed to get events:", error);
       return [];

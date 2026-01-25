@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useHyphaStore } from '../store/hyphaStore';
+import { withHyphaConnection, getStoredToken } from '../utils/hyphaConnection';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Menu } from '@headlessui/react';
@@ -31,7 +32,7 @@ interface ModelTesterProps {
 }
 
 const ModelTester: React.FC<ModelTesterProps> = ({ artifactId, isStaged, isDisabled, skipCache=false, className = '' }) => {
-  const { server, isLoggedIn } = useHyphaStore();
+  const { isLoggedIn } = useHyphaStore();
   const [testResult, setTestResult] = useState<TestResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
@@ -92,26 +93,31 @@ const ModelTester: React.FC<ModelTesterProps> = ({ artifactId, isStaged, isDisab
   }, []);
 
   const runTest = async () => {
-    if (!artifactId || !server) return;
+    if (!artifactId) return;
 
     setIsLoading(true);
     setLoadingStep('Initializing test runner...');
     setIsOpen(true);
-    
+
     try {
       setLoadingStep('Connecting to model runner service...');
-      // const runner = await server.getService('24agents-science/bioimageio-model-runner', {mode: "last"});
-      const runner = await server.getService('24agents-science/model-runner', {mode: "select:min:get_load"});
-      const modelId = artifactId.split('/').pop();
-      
-      setLoadingStep('Downloading and preparing model for testing...');
-      console.log(`Testing model ${modelId}, stage: ${isStaged}, skip_cache: ${skipCache}`);
-      const startTime = performance.now();
-      const result = await runner.test({model_id:modelId, stage: isStaged, skip_cache: skipCache, _rkwargs: true});
-      const endTime = performance.now();
-      const executionTime = (endTime - startTime) / 1000; // Convert to seconds
-      console.log(`Test execution time: ${executionTime.toFixed(2)}s`);
-      console.log("Test result:", result);
+      const token = getStoredToken();
+
+      const result = await withHyphaConnection(async (server) => {
+        const runner = await server.getService('24agents-science/model-runner', {mode: "select:min:get_load"});
+        const modelId = artifactId.split('/').pop();
+
+        setLoadingStep('Downloading and preparing model for testing...');
+        console.log(`Testing model ${modelId}, stage: ${isStaged}, skip_cache: ${skipCache}`);
+        const startTime = performance.now();
+        const testResult = await runner.test({model_id:modelId, stage: isStaged, skip_cache: skipCache, _rkwargs: true});
+        const endTime = performance.now();
+        const executionTime = (endTime - startTime) / 1000; // Convert to seconds
+        console.log(`Test execution time: ${executionTime.toFixed(2)}s`);
+        console.log("Test result:", testResult);
+        return testResult;
+      }, { token: token ?? undefined });
+
       setTestResult(result);
     } catch (err) {
       console.error('Test run failed:', err);

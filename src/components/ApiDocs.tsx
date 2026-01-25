@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vs } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { useHyphaStore } from '../store/hyphaStore';
+import { withHyphaConnection, getStoredToken } from '../utils/hyphaConnection';
 import { ClipboardIcon, CheckIcon } from '@heroicons/react/24/outline';
 import { useSearchParams } from 'react-router-dom';
 
@@ -12,7 +13,7 @@ const ApiDocs: React.FC = () => {
   const [activeLanguageTab, setActiveLanguageTab] = useState<'python' | 'javascript'>('python');
   const [token, setToken] = useState<string>('');
   const [copied, setCopied] = useState(false);
-  const { server, user } = useHyphaStore();
+  const { user } = useHyphaStore();
 
   // Add URL query parameter handling
   useEffect(() => {
@@ -24,7 +25,10 @@ const ApiDocs: React.FC = () => {
 
   const generateToken = async () => {
     try {
-      const newToken = await server.generateToken();
+      const storedToken = getStoredToken();
+      const newToken = await withHyphaConnection(async (server) => {
+        return await server.generateToken();
+      }, { token: storedToken ?? undefined });
       setToken(newToken);
     } catch (error) {
       console.error('Failed to generate token:', error);
