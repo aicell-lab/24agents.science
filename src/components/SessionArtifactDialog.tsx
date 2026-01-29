@@ -25,6 +25,7 @@ export default function SessionArtifactDialog({
   const { isLoggedIn } = useHyphaStore();
   const [files, setFiles] = useState<FileItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingArtifact, setLoadingArtifact] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
@@ -47,6 +48,7 @@ export default function SessionArtifactDialog({
   useEffect(() => {
     const loadArtifact = async () => {
       if (isOpen && isLoggedIn) {
+        setLoadingArtifact(true);
         try {
           const artifact = await withHyphaService(
             "public/artifact-manager",
@@ -58,6 +60,8 @@ export default function SessionArtifactDialog({
           await loadFiles("", isStaged);
         } catch (err) {
           console.error("Failed to load artifact:", err);
+        } finally {
+          setLoadingArtifact(false);
         }
       }
     };
@@ -463,7 +467,15 @@ export default function SessionArtifactDialog({
               )}
             </div>
             {/* Status Badge */}
-            {canUpload ? (
+            {loadingArtifact ? (
+              <span className="px-3 py-1.5 bg-gray-50 text-gray-500 text-xs font-semibold rounded-lg flex items-center gap-1.5 border border-gray-200">
+                <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Loading...
+              </span>
+            ) : canUpload ? (
               <span className="px-3 py-1.5 bg-amber-50 text-amber-700 text-xs font-semibold rounded-lg flex items-center gap-1.5 border border-amber-200">
                 <span className="w-2 h-2 bg-amber-500 rounded-full animate-pulse"></span>
                 Staged
@@ -480,7 +492,10 @@ export default function SessionArtifactDialog({
 
           {/* Stage/Commit Actions */}
           <div className="flex items-center gap-2 ml-4">
-            {canUpload ? (
+            {loadingArtifact ? (
+              // Show nothing while loading to avoid flickering buttons
+              null
+            ) : canUpload ? (
               <>
                 <button
                   onClick={handleCommitArtifact}
