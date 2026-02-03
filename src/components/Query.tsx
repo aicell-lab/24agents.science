@@ -5,7 +5,7 @@ import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import { hyphaWebsocketClient } from 'hypha-rpc';
 
 const SCHEMAS = {
-    searchItems: {
+    search_items: {
         name: "search_items",
         description: `Search for tools and artifacts in the gallery. You can search by name,
             description, and tag. Example queries: 'mass spectrometry', 'gene expression', 'cancer'.
@@ -33,7 +33,7 @@ const SCHEMAS = {
             required: ["query"]
         }
     },
-    composeMcp: {
+    compose_mcp: {
         name: "compose_mcp",
         description: "Compose selected tools into a new MCP service.",
         parameters: {
@@ -50,22 +50,28 @@ const SCHEMAS = {
     }
 };
 
-const searchItems = async (query: string) => {
+const searchItems = async (params: { query: string }, context: object | null = null) => {
     try {
-        let url = `https://hypha.aicell.io/24agents-science/artifacts/24agents.science/children?stage=false&order_by=manifest.score>`;
+        const query = params.query;
+        let url = `https://hypha.aicell.io/24agents-science/artifacts/24agents.science/children?stage=false&limit=10000&order_by=manifest.score>`;
 
         if (query) {
             const keywords = query.split(' ').map(k => k.trim());
             if (keywords.length > 0) {
+                url += '&mode=OR';
                 url += `&keywords=${encodeURIComponent(keywords.join(','))}`;
             }
         }
 
         const response = await fetch(url);
-        const data = await response.json();
-        return data.items || [];
+        const list = await response.json();
+        return list.map((item: any) => ({
+            id: item.id,
+            name: item.manifest?.name || item.name,
+            description: item.manifest?.description || item.description
+        }));
     } catch (e) {
-        console.error("Error in searchItems:", e);
+        console.error("Error in search_items:", e);
         throw e;
     }
 };
@@ -115,7 +121,8 @@ const processArtifact = async (
     }
 };
 
-const composeMcp = async (toolIds: string[]) => {
+const composeMcp = async (params: { toolIds: string[] }, context: object | null = null) => {
+    const toolIds = params.toolIds;
     console.log("composeMcp called with:", toolIds);
     // Connect to Hypha server for the new service
     const composedClient = await hyphaWebsocketClient.connectToServer({
@@ -157,7 +164,7 @@ const composeMcp = async (toolIds: string[]) => {
         description: `Composed service with ${Object.keys(serviceFunctions).length} functions`,
         config: {
             visibility: 'public',
-            require_context: true
+            require_context: false,
         },
         ...serviceFunctions
     });
@@ -195,10 +202,10 @@ const Query: React.FC<{ serviceId?: string }> = ({ serviceId: customServiceId })
                     type: 'query-service',
                     config: {
                         visibility: 'public',
-                        require_context: true,
+                        require_context: false,
                     },
-                    searchItems: Object.assign(searchItems, { __schema__: SCHEMAS.searchItems }),
-                    composeMcp: Object.assign(composeMcp, { __schema__: SCHEMAS.composeMcp })
+                    search_items: Object.assign(searchItems, { __schema__: SCHEMAS.search_items }),
+                    compose_mcp: Object.assign(composeMcp, { __schema__: SCHEMAS.compose_mcp })
                 }, { overwrite: true });
 
                 const serverUrl = server.config.public_base_url || server.config.server_url || 'https://hypha.aicell.io';
