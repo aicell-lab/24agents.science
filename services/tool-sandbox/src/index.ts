@@ -136,14 +136,29 @@ async function main() {
 
         create_session: async (timeout: number = 3600000, context: any = null) => {
             const session = startSession(timeout);
-            
-            return {
-                id: session.id,
-                run_command: async (cmd: string, args: string[] = [], cwd?: string) => executeSessionCommand(session, cmd, args, cwd),
-                install_pip: async (pkg: string) => executeSessionCommand(session, 'pip', ['install', pkg, '--target', session.pylibDir]),
-                install_npm: async (pkg: string) => executeSessionCommand(session, 'npm', ['install', pkg]),
-                destroy: async () => destroySession(session.id)
-            };
+            return session.id;
+        },
+
+        run_command: async (session_id: string, cmd: string, args: string[] = [], cwd?: string) => {
+            const session = activeSessions.get(session_id);
+            if (!session) throw new Error(`Session ${session_id} not found`);
+            return executeSessionCommand(session, cmd, args, cwd);
+        },
+
+        install_pip: async (session_id: string, pkg: string) => {
+            const session = activeSessions.get(session_id);
+            if (!session) throw new Error(`Session ${session_id} not found`);
+            return executeSessionCommand(session, 'pip', ['install', pkg, '--target', session.pylibDir]);
+        },
+
+        install_npm: async (session_id: string, pkg: string) => {
+            const session = activeSessions.get(session_id);
+            if (!session) throw new Error(`Session ${session_id} not found`);
+            return executeSessionCommand(session, 'npm', ['install', pkg]);
+        },
+
+        destroy_session: async (session_id: string) => {
+            return destroySession(session_id);
         }
     });
     
