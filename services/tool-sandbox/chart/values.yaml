@@ -1,0 +1,42 @@
+# Default values for tool-sandbox.
+
+image:
+  repository: ghcr.io/aicell-lab/tool-sandbox
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: "latest"
+
+hypha:
+  serverUrl: "https://hypha.aicell.io"
+  workspace: "tool-sandbox-ws"
+  # Provide token via secret or set here for dev
+  token: ""
+
+serviceAccount:
+  create: true
+  name: ""
+
+podAnnotations: {}
+
+podSecurityContext: {}
+  # fsGroup: 2000
+
+securityContext:
+  # sandbox-runtime inside docker often needs privileges for bubblewrap
+  privileged: true
+  capabilities:
+    add: ["SYS_ADMIN"]
+
+resources: 
+  limits:
+    cpu: 1000m
+    memory: 2Gi
+  requests:
+    cpu: 200m
+    memory: 512Mi
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
