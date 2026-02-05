@@ -1,4 +1,8 @@
 import { SandboxManager, SandboxRuntimeConfig } from '@anthropic-ai/sandbox-runtime';
+import WebSocket from 'ws';
+// @ts-ignore
+global.WebSocket = WebSocket;
+
 import { hyphaWebsocketClient } from 'hypha-rpc';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
