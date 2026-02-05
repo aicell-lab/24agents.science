@@ -2,7 +2,7 @@
 
 image:
   repository: ghcr.io/aicell-lab/tool-sandbox
-  pullPolicy: IfNotPresent
+  pullPolicy: Always
   # Overrides the image tag whose default is the chart appVersion.
   tag: "latest"
 
@@ -22,10 +22,12 @@ podSecurityContext: {}
   # fsGroup: 2000
 
 securityContext:
-  # sandbox-runtime inside docker often needs privileges for bubblewrap
-  privileged: true
+  # sandbox-runtime inside docker often needs privileges for bubblewrap, 
+  # but with enableWeakerNestedSandbox: true (via IN_DOCKER), we can run unprivileged.
+  privileged: false
   capabilities:
-    add: ["SYS_ADMIN"]
+    drop:
+      - ALL
 
 resources: 
   limits:
