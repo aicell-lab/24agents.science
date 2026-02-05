@@ -39,9 +39,20 @@ interface AgentOptions {
 interface LogEntry {
   id: string;
   timestamp: number;
-  type: 'user' | 'assistant' | 'tool_use' | 'tool_result' | 'system' | 'result' | 'error' | 'info' | 'done';
+  type: 'user' | 'assistant' | 'tool_use' | 'tool_result' | 'system' | 'result' | 'error' | 'info' | 'done' | 'init';
   content: string;
   details?: any;
+  // For tool_use entries: track the tool execution status
+  toolStatus?: 'running' | 'completed' | 'error';
+  // For tool_use entries: attached result when received
+  toolResult?: {
+    content: string;
+    details: any;
+    isError: boolean;
+    timestamp: number;
+  };
+  // Tool use ID for matching tool_use with tool_result
+  toolUseId?: string;
 }
 
 // Log Entry Icons - consistent 4x4 size
@@ -92,11 +103,48 @@ const LogIcons = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
     </svg>
   ),
+  init: (
+    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+    </svg>
+  ),
+  // Tool status icons
+  tool_running: (
+    <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+    </svg>
+  ),
+  tool_completed: (
+    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  ),
+  tool_error: (
+    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  ),
 };
 
 // Log Entry Component for consistent rendering
-function LogEntryItem({ log, isExpanded, onToggle }: { log: LogEntry; isExpanded: boolean; onToggle: () => void }) {
-  const getLogStyle = (type: LogEntry['type']) => {
+function LogEntryItem({ log, isExpanded, onToggle, isExecuting }: { log: LogEntry; isExpanded: boolean; onToggle: () => void; isExecuting?: boolean }) {
+  // Determine effective tool status - only show "running" if task is still executing
+  const effectiveToolStatus = log.type === 'tool_use'
+    ? (log.toolStatus === 'running' && !isExecuting ? undefined : log.toolStatus)
+    : undefined;
+
+  // Get style based on log type and tool status
+  const getLogStyle = (type: LogEntry['type'], toolStatus?: 'running' | 'completed' | 'error') => {
+    // For tool_use, style based on tool status
+    if (type === 'tool_use' && toolStatus) {
+      switch (toolStatus) {
+        case 'running': return { bg: 'bg-purple-500/10', border: 'border-purple-500/30', icon: 'text-purple-400', label: 'text-purple-400' };
+        case 'completed': return { bg: 'bg-green-500/10', border: 'border-green-500/30', icon: 'text-green-400', label: 'text-green-400' };
+        case 'error': return { bg: 'bg-red-500/10', border: 'border-red-500/30', icon: 'text-red-400', label: 'text-red-400' };
+      }
+    }
+
     switch (type) {
       case 'user': return { bg: 'bg-blue-500/10', border: 'border-blue-500/30', icon: 'text-blue-400', label: 'text-blue-400' };
       case 'assistant': return { bg: 'bg-emerald-500/10', border: 'border-emerald-500/30', icon: 'text-emerald-400', label: 'text-emerald-400' };
@@ -105,16 +153,36 @@ function LogEntryItem({ log, isExpanded, onToggle }: { log: LogEntry; isExpanded
       case 'error': return { bg: 'bg-red-500/10', border: 'border-red-500/30', icon: 'text-red-400', label: 'text-red-400' };
       case 'result': return { bg: 'bg-teal-500/10', border: 'border-teal-500/30', icon: 'text-teal-400', label: 'text-teal-400' };
       case 'done': return { bg: 'bg-green-500/10', border: 'border-green-500/30', icon: 'text-green-400', label: 'text-green-400' };
+      case 'init': return { bg: 'bg-cyan-500/10', border: 'border-cyan-500/30', icon: 'text-cyan-400', label: 'text-cyan-400' };
       case 'system': return { bg: 'bg-gray-500/10', border: 'border-gray-500/30', icon: 'text-gray-400', label: 'text-gray-400' };
       default: return { bg: 'bg-gray-500/10', border: 'border-gray-500/30', icon: 'text-gray-400', label: 'text-gray-400' };
     }
   };
 
-  const style = getLogStyle(log.type);
-  const hasDetails = log.details && Object.keys(log.details).length > 0;
-  const Icon = LogIcons[log.type] || LogIcons.info;
+  // Get the appropriate icon for tool_use based on status
+  const getToolIcon = (status?: 'running' | 'completed' | 'error') => {
+    if (log.type !== 'tool_use') return null;
+    switch (status) {
+      case 'running': return LogIcons.tool_running;
+      case 'completed': return LogIcons.tool_completed;
+      case 'error': return LogIcons.tool_error;
+      default: return LogIcons.tool_use; // Default to regular tool icon for tool_use without result
+    }
+  };
 
-  const getLabel = (type: LogEntry['type']) => {
+  const style = getLogStyle(log.type, effectiveToolStatus);
+  const hasDetails = log.details && Object.keys(log.details).length > 0;
+  const hasToolResult = log.type === 'tool_use' && log.toolResult;
+  const Icon = log.type === 'tool_use' ? getToolIcon(effectiveToolStatus) : (LogIcons[log.type] || LogIcons.info);
+
+  const getLabel = (type: LogEntry['type'], toolStatus?: 'running' | 'completed' | 'error') => {
+    if (type === 'tool_use' && toolStatus) {
+      switch (toolStatus) {
+        case 'running': return 'Tool Running';
+        case 'completed': return 'Tool Call';
+        case 'error': return 'Tool Error';
+      }
+    }
     switch (type) {
       case 'user': return 'You';
       case 'assistant': return 'Agent';
@@ -123,6 +191,7 @@ function LogEntryItem({ log, isExpanded, onToggle }: { log: LogEntry; isExpanded
       case 'error': return 'Error';
       case 'result': return 'Complete';
       case 'done': return 'Done';
+      case 'init': return 'Init';
       case 'system': return 'System';
       default: return 'Info';
     }
@@ -160,10 +229,53 @@ function LogEntryItem({ log, isExpanded, onToggle }: { log: LogEntry; isExpanded
             inputSummary = keys.length > 0 ? `{${keys.slice(0, 3).join(', ')}${keys.length > 3 ? '...' : ''}}` : '{}';
           }
         }
+
+        // Format the result preview if available
+        const toolResult = log.toolResult;
+        let resultPreviewText = '';
+        if (toolResult) {
+          const resultContent = toolResult.content;
+          if (typeof resultContent === 'string') {
+            resultPreviewText = resultContent.length > 200 ? resultContent.substring(0, 200) + '...' : resultContent;
+          } else {
+            resultPreviewText = JSON.stringify(resultContent).substring(0, 200) + '...';
+          }
+        }
+
+        // Status color for tool name - use effectiveToolStatus
+        const toolNameColor = effectiveToolStatus === 'error' ? 'text-red-300' :
+                              effectiveToolStatus === 'completed' ? 'text-green-300' : 'text-purple-300';
+
         return (
           <div>
-            <span className="font-semibold text-purple-300">{toolName}</span>
+            <div className="flex items-center gap-2">
+              <span className={`font-semibold ${toolNameColor}`}>{toolName}</span>
+              {/* Only show bouncing animation when task is actively running */}
+              {effectiveToolStatus === 'running' && (
+                <span className="flex gap-1 items-center">
+                  <span className="w-1.5 h-1.5 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
+                  <span className="w-1.5 h-1.5 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
+                  <span className="w-1.5 h-1.5 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+                </span>
+              )}
+            </div>
             {inputSummary && <div className="text-xs text-gray-400 mt-1">Input: {inputSummary}</div>}
+            {/* Show result if available */}
+            {toolResult && (
+              <div className={`mt-2 pt-2 border-t ${toolResult.isError ? 'border-red-500/30' : 'border-green-500/30'}`}>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <span className={`text-xs font-semibold ${toolResult.isError ? 'text-red-400' : 'text-green-400'}`}>
+                    {toolResult.isError ? 'Error' : 'Result'}
+                  </span>
+                  <span className="text-xs text-gray-500">
+                    {new Date(toolResult.timestamp).toLocaleTimeString()}
+                  </span>
+                </div>
+                <div className={`text-xs ${toolResult.isError ? 'text-red-300' : 'text-gray-300'} whitespace-pre-wrap`}>
+                  {resultPreviewText || 'Tool Call'}
+                </div>
+              </div>
+            )}
           </div>
         );
 
@@ -287,6 +399,77 @@ function LogEntryItem({ log, isExpanded, onToggle }: { log: LogEntry; isExpanded
           </div>
         );
 
+      case 'init':
+        // Init event with agent/session configuration
+        const initModel = details?.model || '';
+        const initPermissionMode = details?.permission_mode || '';
+        const initAllowedTools = details?.allowed_tools || [];
+        const initCwd = details?.cwd || '';
+        const initMaxTurns = details?.max_turns;
+        const initSandbox = details?.sandbox_enabled;
+        const initRemoteSandbox = details?.remote_sandbox;
+        const initStorageType = details?.storage_type || '';
+
+        const formatInitModel = (m: string) => m ? m.replace('claude-', '').replace(/-\d{8}$/, '') : 'default';
+
+        return (
+          <div className="space-y-0.5 text-[11px]">
+            {/* Row 1: Model & Mode */}
+            <div className="flex items-center flex-wrap gap-x-4">
+              <span>
+                <span className="text-gray-500">Model: </span>
+                <span className="font-medium text-blue-400">{formatInitModel(initModel)}</span>
+              </span>
+              <span>
+                <span className="text-gray-500">Mode: </span>
+                <span className={`font-medium ${initPermissionMode === 'bypassPermissions' ? 'text-amber-400' : 'text-green-400'}`}>
+                  {initPermissionMode === 'bypassPermissions' ? 'bypass' : initPermissionMode || 'default'}
+                </span>
+              </span>
+              {initMaxTurns && (
+                <span>
+                  <span className="text-gray-500">Turns: </span>
+                  <span className="font-medium text-gray-300">{initMaxTurns}</span>
+                </span>
+              )}
+              {initStorageType && (
+                <span>
+                  <span className="text-gray-500">Storage: </span>
+                  <span className="font-medium text-purple-400">{initStorageType}</span>
+                </span>
+              )}
+            </div>
+            {/* Row 2: Sandbox */}
+            {initSandbox !== undefined && (
+              <div className="flex items-center gap-x-4">
+                <span>
+                  <span className="text-gray-500">Sandbox: </span>
+                  <span className={`font-medium ${initSandbox ? 'text-green-400' : 'text-gray-500'}`}>
+                    {initSandbox ? (initRemoteSandbox ? 'remote' : 'local') : 'disabled'}
+                  </span>
+                </span>
+              </div>
+            )}
+            {/* Row 3: Tools */}
+            {initAllowedTools.length > 0 && (
+              <div className="flex">
+                <span className="text-gray-500 mr-1">Tools: </span>
+                <span className="text-gray-400">
+                  {initAllowedTools.slice(0, 8).join(', ')}
+                  {initAllowedTools.length > 8 && <span className="text-gray-500"> +{initAllowedTools.length - 8}</span>}
+                </span>
+              </div>
+            )}
+            {/* Row 4: CWD */}
+            {initCwd && (
+              <div className="flex">
+                <span className="text-gray-500 mr-1">CWD: </span>
+                <span className="text-gray-400 font-mono truncate">{initCwd}</span>
+              </div>
+            )}
+          </div>
+        );
+
       case 'done':
         return <span className="text-green-300 font-medium">Task completed successfully</span>;
 
@@ -298,8 +481,8 @@ function LogEntryItem({ log, isExpanded, onToggle }: { log: LogEntry; isExpanded
   return (
     <div className={`rounded-lg border ${style.border} ${style.bg} overflow-hidden`}>
       <div
-        className={`flex items-start gap-3 p-3 ${hasDetails ? 'cursor-pointer hover:bg-white/5' : ''}`}
-        onClick={() => hasDetails && onToggle()}
+        className={`flex items-start gap-3 p-3 ${(hasDetails || hasToolResult) ? 'cursor-pointer hover:bg-white/5' : ''}`}
+        onClick={() => (hasDetails || hasToolResult) && onToggle()}
       >
         {/* Icon */}
         <div className={`flex-shrink-0 mt-0.5 ${style.icon}`}>
@@ -310,12 +493,12 @@ function LogEntryItem({ log, isExpanded, onToggle }: { log: LogEntry; isExpanded
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
             <span className={`text-xs font-semibold ${style.label}`}>
-              {getLabel(log.type)}
+              {getLabel(log.type, effectiveToolStatus)}
             </span>
             <span className="text-xs text-gray-500">
               {new Date(log.timestamp).toLocaleTimeString()}
             </span>
-            {hasDetails && (
+            {(hasDetails || hasToolResult) && (
               <svg
                 className={`w-3 h-3 text-gray-500 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
                 fill="none"
@@ -333,13 +516,24 @@ function LogEntryItem({ log, isExpanded, onToggle }: { log: LogEntry; isExpanded
       </div>
 
       {/* Expandable Details */}
-      {hasDetails && isExpanded && (
+      {(hasDetails || hasToolResult) && isExpanded && (
         <div className="px-3 pb-3 pt-0 ml-7">
           <div className="p-2 bg-black/20 rounded text-xs font-mono text-gray-400 overflow-x-auto">
-            <div className="text-gray-300 font-semibold mb-2">Raw Details:</div>
+            <div className="text-gray-300 font-semibold mb-2">Tool Call Details:</div>
             <pre className="whitespace-pre-wrap break-all">
               {JSON.stringify(log.details, null, 2)}
             </pre>
+            {/* Show tool result details if available */}
+            {hasToolResult && log.toolResult && (
+              <>
+                <div className={`text-gray-300 font-semibold mb-2 mt-4 pt-2 border-t ${log.toolResult.isError ? 'border-red-500/30' : 'border-green-500/30'}`}>
+                  {log.toolResult.isError ? 'Error Details:' : 'Result Details:'}
+                </div>
+                <pre className="whitespace-pre-wrap break-all">
+                  {JSON.stringify(log.toolResult.details, null, 2)}
+                </pre>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -591,6 +785,8 @@ function AgentInfoPanel({
   logs,
   isExecuting,
   onExecuteTask,
+  onStopTask,
+  isStopping,
   taskInput,
   setTaskInput,
   onClearLogs,
@@ -609,6 +805,8 @@ function AgentInfoPanel({
   logs: LogEntry[];
   isExecuting: boolean;
   onExecuteTask: () => void;
+  onStopTask: () => void;
+  isStopping: boolean;
   taskInput: string;
   setTaskInput: (val: string) => void;
   onClearLogs: () => void;
@@ -844,6 +1042,7 @@ function AgentInfoPanel({
                   log={log}
                   isExpanded={expandedLogs.has(log.id)}
                   onToggle={() => toggleLogExpanded(log.id)}
+                  isExecuting={isExecuting}
                 />
               ))}
               {/* Thinking indicator when agent is working */}
@@ -888,29 +1087,43 @@ function AgentInfoPanel({
               disabled={isExecuting}
               className="flex-1 px-4 py-3 bg-gray-700 text-white border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-gray-400 disabled:opacity-50"
             />
-            <button
-              onClick={onExecuteTask}
-              disabled={isExecuting || !taskInput.trim()}
-              className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-cyan-600 text-white font-semibold rounded-lg hover:from-indigo-700 hover:to-cyan-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
-            >
-              {isExecuting ? (
-                <>
-                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Running
-                </>
-              ) : (
-                <>
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  Execute
-                </>
-              )}
-            </button>
+            {isExecuting ? (
+              <button
+                onClick={onStopTask}
+                disabled={isStopping}
+                className="px-6 py-3 bg-gradient-to-r from-red-600 to-orange-600 text-white font-semibold rounded-lg hover:from-red-700 hover:to-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
+                title="Stop the current task (agent will commit any uncommitted work first)"
+              >
+                {isStopping ? (
+                  <>
+                    <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Stopping...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                      <rect x="6" y="6" width="12" height="12" rx="1" />
+                    </svg>
+                    Stop
+                  </>
+                )}
+              </button>
+            ) : (
+              <button
+                onClick={onExecuteTask}
+                disabled={!taskInput.trim()}
+                className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-cyan-600 text-white font-semibold rounded-lg hover:from-indigo-700 hover:to-cyan-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Execute
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -934,11 +1147,14 @@ export default function AgentManager() {
   const [agentManagerService, setAgentManagerService] = useState<any>(null);
   const [serviceStatus, setServiceStatus] = useState<'connecting' | 'online' | 'offline'>('connecting');
   const [expandedAgents, setExpandedAgents] = useState<Set<string>>(new Set());
+  const [isReconnecting, setIsReconnecting] = useState(false);
 
   // Task execution state
   const [taskInput, setTaskInput] = useState("");
   const [isExecuting, setIsExecuting] = useState(false);
   const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [currentTaskSessionId, setCurrentTaskSessionId] = useState<string | null>(null);
+  const [isStopping, setIsStopping] = useState(false);
 
   // Session management state
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
@@ -950,6 +1166,46 @@ export default function AgentManager() {
   const [showHostingDialog, setShowHostingDialog] = useState(false);
   const [creatingSessionForAgent, setCreatingSessionForAgent] = useState<string | null>(null);
   const [loadingSessionsForAgent, setLoadingSessionsForAgent] = useState<string | null>(null);
+
+  // Helper to check if error is a connection error
+  const isConnectionError = (err: any): boolean => {
+    const errorStr = String(err);
+    return errorStr.includes('Connection is closed') ||
+           errorStr.includes('WebSocket') ||
+           errorStr.includes('connection') ||
+           errorStr.includes('disconnected') ||
+           errorStr.includes('ECONNREFUSED');
+  };
+
+  // Helper to handle connection errors - triggers reconnect
+  const handleConnectionError = useCallback(async (err: any, context: string) => {
+    console.error(`[${context}] Connection error:`, err);
+
+    if (isConnectionError(err) && !isReconnecting) {
+      setIsReconnecting(true);
+      setServiceStatus('offline');
+      setAgentManagerService(null);
+
+      console.log('Connection lost, attempting to reconnect...');
+
+      try {
+        // Attempt to re-login which will establish a new connection
+        await login('', '');
+        console.log('Reconnection successful');
+        setServiceStatus('connecting');
+        // Service will be fetched again on next operation
+      } catch (loginErr) {
+        console.error('Reconnection failed:', loginErr);
+        // Show user-friendly error
+        alert('Connection lost. Please refresh the page or click Login to reconnect.');
+      } finally {
+        setIsReconnecting(false);
+      }
+
+      return true; // Indicates it was a connection error
+    }
+    return false;
+  }, [isReconnecting, login]);
 
   // Get the agent manager service
   const getAgentManagerService = useCallback(async () => {
@@ -963,9 +1219,11 @@ export default function AgentManager() {
     } catch (err) {
       console.error("Failed to get agent manager service:", err);
       setServiceStatus('offline');
+      // Check if it's a connection error and handle reconnect
+      await handleConnectionError(err, 'getAgentManagerService');
       return null;
     }
-  }, [server]);
+  }, [server, handleConnectionError]);
 
   // Extract session name from session ID
   const extractSessionName = (sessionId: string): string => {
@@ -989,10 +1247,12 @@ export default function AgentManager() {
       setAgents((agentList || []).reverse());
     } catch (err) {
       console.error("Failed to load agents:", err);
+      // Check if it's a connection error and handle reconnect
+      await handleConnectionError(err, 'loadAgents');
     } finally {
       setLoading(false);
     }
-  }, [agentManagerService, getAgentManagerService]);
+  }, [agentManagerService, getAgentManagerService, handleConnectionError]);
 
   // Load sessions for selected agent
   const loadSessions = useCallback(async (agentId: string) => {
@@ -1060,7 +1320,11 @@ export default function AgentManager() {
       return processedSession;
     } catch (err) {
       console.error("Failed to create session:", err);
-      alert(`Failed to create session: ${err}`);
+      // Check if it's a connection error and handle reconnect
+      const wasConnectionError = await handleConnectionError(err, 'handleCreateSession');
+      if (!wasConnectionError) {
+        alert(`Failed to create session: ${err}`);
+      }
       return null;
     }
   };
@@ -1081,11 +1345,51 @@ export default function AgentManager() {
       await loadSessions(agentId);
     } catch (err) {
       console.error("Failed to delete session:", err);
-      alert(`Failed to delete session: ${err}`);
+      // Check if it's a connection error and handle reconnect
+      const wasConnectionError = await handleConnectionError(err, 'handleDeleteSession');
+      if (!wasConnectionError) {
+        alert(`Failed to delete session: ${err}`);
+      }
     }
   };
 
   // Load conversation history for a session
+  // Helper to merge tool results into tool_use entries
+  const mergeToolResults = (logs: LogEntry[]): LogEntry[] => {
+    const toolUseMap = new Map<string, number>();
+    const result: LogEntry[] = [];
+
+    // First pass: add all logs and track tool_use positions
+    for (let i = 0; i < logs.length; i++) {
+      const log = logs[i];
+      if (log.type === 'tool_use' && log.toolUseId) {
+        toolUseMap.set(log.toolUseId, result.length);
+        result.push({ ...log });
+      } else if (log.type === 'tool_result' && log.toolUseId) {
+        // Find and update the corresponding tool_use entry
+        const toolUseIndex = toolUseMap.get(log.toolUseId);
+        if (toolUseIndex !== undefined) {
+          const isError = log.details?.is_error === true;
+          result[toolUseIndex] = {
+            ...result[toolUseIndex],
+            toolStatus: isError ? 'error' as const : 'completed' as const,
+            toolResult: {
+              content: log.content,
+              details: log.details,
+              isError: isError,
+              timestamp: log.timestamp
+            }
+          };
+        }
+        // Don't add tool_result as separate entry
+      } else {
+        result.push(log);
+      }
+    }
+
+    return result;
+  };
+
   const loadConversationHistory = async (sessionId: string) => {
     const svc = agentManagerService || await getAgentManagerService();
     if (!svc) return;
@@ -1129,10 +1433,13 @@ export default function AgentManager() {
         }
       }
 
-      console.log('Converted to log entries:', historyLogs.length, 'entries');
+      // Merge tool_result entries into their corresponding tool_use entries
+      const mergedLogs = mergeToolResults(historyLogs);
+
+      console.log('Converted to log entries:', mergedLogs.length, 'entries (merged)');
       console.log('Has ongoing task:', result.has_ongoing_task);
 
-      setLogs(historyLogs);
+      setLogs(mergedLogs);
 
       // Return whether there's an ongoing task for reconnection logic
       return result.has_ongoing_task;
@@ -1300,6 +1607,10 @@ export default function AgentManager() {
               console.error("Error reconnecting to ongoing task:", err);
               setIsExecuting(false);
             }
+            // Note: watchTaskEvents has its own finally block that sets isExecuting(false)
+          } else {
+            // Service not available, don't leave in executing state
+            console.log('Service not available for reconnection');
           }
         }
       })();
@@ -1378,7 +1689,24 @@ export default function AgentManager() {
   };
 
   // Helper function to process event and convert to log entry
+  // Helper to extract tool result content
+  const extractToolResultContent = (event: any): string => {
+    if (typeof event.content === 'string') {
+      return event.content;
+    } else if (Array.isArray(event.content)) {
+      return event.content
+        .map((block: any) => block.text || block.content || JSON.stringify(block))
+        .join('\n');
+    } else if (event.content) {
+      return JSON.stringify(event.content);
+    }
+    return '(no content)';
+  };
+
   const processEventToLog = (event: any): LogEntry | null => {
+    // Console log all events for debugging
+    console.log(`[Agent Event] ${event.type}:`, event);
+
     const logEntry: LogEntry = {
       id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       timestamp: Date.now(),
@@ -1396,37 +1724,51 @@ export default function AgentManager() {
         break;
       case 'tool_use':
         logEntry.content = `Using tool: ${event.name}`;
+        // Store tool use ID for matching with result
+        logEntry.toolUseId = event.id;
+        // Set initial status as running
+        logEntry.toolStatus = 'running';
         break;
       case 'tool_result':
-        // Tool results can come from user or assistant role
-        // Content can be: string, list of dicts (with 'type' and 'text'), or null
-        const isError = event.is_error === true;
-        const resultPrefix = isError ? 'Tool error' : 'Tool result';
-
-        let resultContent = '';
-        if (typeof event.content === 'string') {
-          resultContent = event.content.substring(0, 200);
-        } else if (Array.isArray(event.content)) {
-          // Extract text from list of content blocks
-          resultContent = event.content
-            .map((block: any) => block.text || block.content || JSON.stringify(block))
-            .join('\n')
-            .substring(0, 200);
-        } else if (event.content) {
-          resultContent = JSON.stringify(event.content).substring(0, 200);
-        } else {
-          resultContent = '(no content)';
-        }
-
-        logEntry.content = `${resultPrefix}: ${resultContent}...`;
+        // Tool results are now merged into their corresponding tool_use entries
+        // Return a special marker so we can handle the merge in setLogs
+        logEntry.content = extractToolResultContent(event);
+        // Store tool_use_id for matching
+        logEntry.toolUseId = event.tool_use_id;
         break;
+      case 'init':
+        // Init event - only log to console with clear header, don't show in UI
+        console.log('');
+        console.log('════════════════════════════════════════════════════════════════');
+        console.log('                 🚀 AGENT SESSION STARTED                       ');
+        console.log('════════════════════════════════════════════════════════════════');
+        console.log(event);
+        console.log('════════════════════════════════════════════════════════════════');
+        console.log('');
+        return null; // Don't create log entry for init events
       case 'result':
-        // Result event includes rich metadata
+        // Result event includes rich metadata - print session end header
         const duration = event.duration_ms ? ` (${Math.round(event.duration_ms)}ms)` : '';
         const turns = event.turns_used ? ` - ${event.turns_used} turn${event.turns_used > 1 ? 's' : ''}` : '';
+        console.log('');
+        console.log('════════════════════════════════════════════════════════════════');
+        console.log('                 ✅ AGENT SESSION COMPLETED                     ');
+        console.log('════════════════════════════════════════════════════════════════');
+        console.log(event);
+        console.log('════════════════════════════════════════════════════════════════');
+        console.log('');
         logEntry.content = `Task completed${turns}${duration}. ${event.summary?.substring(0, 300) || ''}`;
         break;
       case 'error':
+        // Print error header for session errors
+        console.log('');
+        console.log('════════════════════════════════════════════════════════════════');
+        console.log('                 ❌ AGENT SESSION ERROR                         ');
+        console.log('════════════════════════════════════════════════════════════════');
+        console.error(`Error: ${event.error || 'Unknown error'}`);
+        console.error(event);
+        console.log('════════════════════════════════════════════════════════════════');
+        console.log('');
         logEntry.content = `Error: ${event.error || 'Unknown error'}`;
         break;
       case 'system':
@@ -1437,6 +1779,12 @@ export default function AgentManager() {
         logEntry.content = event.message || 'Info';
         break;
       case 'done':
+        // Print session done header
+        console.log('');
+        console.log('╔════════════════════════════════════════════════════════════════╗');
+        console.log('║                 🏁 AGENT SESSION DONE                          ║');
+        console.log('╚════════════════════════════════════════════════════════════════╝');
+        console.log('');
         // Don't create log entry for done events
         return null;
       default:
@@ -1476,7 +1824,30 @@ export default function AgentManager() {
         hasEvents = true;
         const logEntry = processEventToLog(event);
         if (logEntry) {
-          setLogs(prev => [...prev, logEntry]);
+          // Handle tool_result by merging into existing tool_use entry
+          if (logEntry.type === 'tool_result' && logEntry.toolUseId) {
+            setLogs(prev => {
+              const updatedLogs = prev.map(log => {
+                if (log.type === 'tool_use' && log.toolUseId === logEntry.toolUseId) {
+                  const isError = event.is_error === true;
+                  return {
+                    ...log,
+                    toolStatus: isError ? 'error' as const : 'completed' as const,
+                    toolResult: {
+                      content: logEntry.content,
+                      details: logEntry.details,
+                      isError: isError,
+                      timestamp: logEntry.timestamp
+                    }
+                  };
+                }
+                return log;
+              });
+              return updatedLogs;
+            });
+          } else {
+            setLogs(prev => [...prev, logEntry]);
+          }
         }
 
         // Stop watching when task completes
@@ -1490,6 +1861,9 @@ export default function AgentManager() {
       }
     } catch (err) {
       console.error("Error watching task:", err);
+      // Check if it's a connection error and handle reconnect
+      const wasConnectionError = await handleConnectionError(err, 'watchTaskEvents');
+
       // Only show error in UI if it's NOT a reconnection attempt
       // Reconnection errors are expected and should be silently ignored
       if (!isReconnection) {
@@ -1497,7 +1871,9 @@ export default function AgentManager() {
           id: `${Date.now()}-error`,
           timestamp: Date.now(),
           type: 'error',
-          content: `Watch task error: ${err}`
+          content: wasConnectionError
+            ? `Connection lost. Attempting to reconnect...`
+            : `Watch task error: ${err}`
         }]);
       }
     } finally {
@@ -1565,19 +1941,71 @@ export default function AgentManager() {
       console.log('Task submitted:', result);
 
       const taskSessionId = result.session_id;
+      setCurrentTaskSessionId(taskSessionId);
 
       // Watch task events
       await watchTaskEvents(taskSessionId);
 
+      // Clear task session ID when done
+      setCurrentTaskSessionId(null);
+
     } catch (err) {
       console.error("Task execution error:", err);
+      // Check if it's a connection error and handle reconnect
+      const wasConnectionError = await handleConnectionError(err, 'handleExecuteTask');
       setLogs(prev => [...prev, {
         id: `${Date.now()}-error`,
         timestamp: Date.now(),
         type: 'error',
-        content: `Execution failed: ${err}`
+        content: wasConnectionError
+          ? `Connection lost. Attempting to reconnect...`
+          : `Execution failed: ${err}`
       }]);
       setIsExecuting(false);
+      setCurrentTaskSessionId(null);
+    }
+  };
+
+  // Stop task - sends a stop hook message to warn agent about uncommitted work
+  const handleStopTask = async () => {
+    if (!currentTaskSessionId || isStopping) return;
+
+    const svc = agentManagerService || await getAgentManagerService();
+    if (!svc) {
+      console.error("Agent manager service not available for stopping task");
+      return;
+    }
+
+    setIsStopping(true);
+
+    try {
+      console.log('Stopping task for session:', currentTaskSessionId);
+
+      // Call stop_task with a stop hook message to warn about uncommitted work
+      await svc.stop_task({
+        session_id: currentTaskSessionId,
+        reason: "User requested stop. IMPORTANT: Before stopping, please check if you have any uncommitted changes (e.g., git status). If there are uncommitted changes, please commit them with an appropriate message before the session ends. This ensures no work is lost.",
+        _rkwargs: true
+      });
+
+      setLogs(prev => [...prev, {
+        id: `${Date.now()}-system`,
+        timestamp: Date.now(),
+        type: 'system',
+        content: 'Stop requested - agent will finish current operation and commit any uncommitted work'
+      }]);
+
+      console.log('Stop task request sent');
+    } catch (err) {
+      console.error("Failed to stop task:", err);
+      setLogs(prev => [...prev, {
+        id: `${Date.now()}-error`,
+        timestamp: Date.now(),
+        type: 'error',
+        content: `Failed to stop task: ${err}`
+      }]);
+    } finally {
+      setIsStopping(false);
     }
   };
 
@@ -1633,12 +2061,16 @@ export default function AgentManager() {
             <div className="flex items-center gap-2">
               <h2 className="text-lg font-semibold text-gray-800">Agents</h2>
               {isLoggedIn && (
-                <div className="flex items-center gap-1.5" title={`Service: ${serviceStatus}`}>
+                <div className="flex items-center gap-1.5" title={`Service: ${isReconnecting ? 'reconnecting' : serviceStatus}`}>
                   <span className={`w-2 h-2 rounded-full ${
+                    isReconnecting ? 'bg-orange-500 animate-pulse' :
                     serviceStatus === 'online' ? 'bg-green-500' :
                     serviceStatus === 'connecting' ? 'bg-yellow-500 animate-pulse' :
                     'bg-red-500'
                   }`}></span>
+                  {isReconnecting && (
+                    <span className="text-xs text-orange-600">Reconnecting...</span>
+                  )}
                 </div>
               )}
             </div>
@@ -1952,20 +2384,8 @@ export default function AgentManager() {
                             setSelectedSession(session);
                             setIsStatefulMode(true);
                             setSearchParams({ agent: agent.agent_id, session: session.session_id });
-
-                            // Load conversation history
-                            const hasOngoingTask = await loadConversationHistory(session.session_id);
-                            if (hasOngoingTask && !isExecuting) {
-                              const svc = agentManagerService || await getAgentManagerService();
-                              if (svc) {
-                                try {
-                                  setIsExecuting(true);
-                                  await watchTaskEvents(session.session_id, true);
-                                } catch (err) {
-                                  setIsExecuting(false);
-                                }
-                              }
-                            }
+                            // Note: Conversation history loading is handled by the useEffect
+                            // that watches selectedSession?.session_id changes
                           }}
                           className={`flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-pointer transition-all group/session ${
                             selectedSession?.session_id === session.session_id
@@ -2052,6 +2472,8 @@ export default function AgentManager() {
               logs={logs}
               isExecuting={isExecuting}
               onExecuteTask={handleExecuteTask}
+              onStopTask={handleStopTask}
+              isStopping={isStopping}
               taskInput={taskInput}
               setTaskInput={setTaskInput}
               onClearLogs={() => setLogs([])}

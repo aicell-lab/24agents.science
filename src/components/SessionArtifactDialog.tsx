@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useHyphaStore } from "../store/hyphaStore";
+import { withHyphaService, getStoredToken, DEFAULT_SERVER_URL } from "../utils/hyphaConnection";
 
 interface SessionArtifactDialogProps {
   sessionId: string;
@@ -21,15 +22,15 @@ export default function SessionArtifactDialog({
   isOpen,
   onClose,
 }: SessionArtifactDialogProps) {
-  const { server } = useHyphaStore();
+  const { isLoggedIn } = useHyphaStore();
   const [files, setFiles] = useState<FileItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingArtifact, setLoadingArtifact] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
   const [expandedDirs, setExpandedDirs] = useState<Record<string, FileItem[]>>({});
   const [dragCounter, setDragCounter] = useState(0);
-  const [artifactManager, setArtifactManager] = useState<any>(null);
   const [currentArtifact, setCurrentArtifact] = useState<any>(null);
   const [operationLoading, setOperationLoading] = useState<string | null>(null);
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
@@ -37,37 +38,35 @@ export default function SessionArtifactDialog({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
 
-  // Get artifact manager service
-  useEffect(() => {
-    const getAM = async () => {
-      if (server) {
-        try {
-          const am = await server.getService("public/artifact-manager", { case_conversion: "camel" });
-          setArtifactManager(am);
-        } catch (err) {
-          console.error("Failed to get artifact manager:", err);
-        }
-      }
-    };
-    getAM();
-  }, [server]);
+  // Helper to get service options
+  const getServiceConfig = () => ({
+    token: getStoredToken() ?? undefined,
+    serviceOptions: { case_conversion: "camel" }
+  });
 
   // Load artifact info and files when dialog opens
   useEffect(() => {
     const loadArtifact = async () => {
-      if (isOpen && artifactManager) {
+      if (isOpen && isLoggedIn) {
+        setLoadingArtifact(true);
         try {
-          const artifact = await artifactManager.read(sessionId, { stage: true, _rkwargs: true });
+          const artifact = await withHyphaService(
+            "public/artifact-manager",
+            async (am) => am.read(sessionId, { stage: true, _rkwargs: true }),
+            getServiceConfig()
+          );
           setCurrentArtifact(artifact);
           const isStaged = artifact?.staging !== null;
           await loadFiles("", isStaged);
         } catch (err) {
           console.error("Failed to load artifact:", err);
+        } finally {
+          setLoadingArtifact(false);
         }
       }
     };
     loadArtifact();
-  }, [isOpen, artifactManager, sessionId]);
+  }, [isOpen, isLoggedIn, sessionId]);
 
   const canUpload = currentArtifact?.staging !== null;
 
@@ -105,7 +104,7 @@ export default function SessionArtifactDialog({
   };
 
   const handleBatchDelete = async () => {
-    if (!artifactManager || selectedFiles.size === 0) return;
+    if (selectedFiles.size === 0) return;
 
     const confirmMsg = `Delete ${selectedFiles.size} selected item(s)? This cannot be undone.`;
     if (!window.confirm(confirmMsg)) return;
@@ -118,17 +117,19 @@ export default function SessionArtifactDialog({
         return depthB - depthA;
       });
 
-      for (const filePath of sortedPaths) {
-        try {
-          await artifactManager.removeFile({
-            artifact_id: sessionId,
-            file_path: filePath,
-            _rkwargs: true
-          });
-        } catch (err) {
-          console.error(`Failed to delete ${filePath}:`, err);
+      await withHyphaService("public/artifact-manager", async (am) => {
+        for (const filePath of sortedPaths) {
+          try {
+            await am.removeFile({
+              artifact_id: sessionId,
+              file_path: filePath,
+              _rkwargs: true
+            });
+          } catch (err) {
+            console.error(`Failed to delete ${filePath}:`, err);
+          }
         }
-      }
+      }, getServiceConfig());
 
       setSelectedFiles(new Set());
       setIsSelectionMode(false);
@@ -146,16 +147,16 @@ export default function SessionArtifactDialog({
   };
 
   const loadFiles = async (path: string = "", isStaged?: boolean) => {
-    if (!artifactManager) return [];
-
     setLoading(true);
     try {
-      const fileList = await artifactManager.listFiles({
-        artifact_id: sessionId,
-        dir_path: path || undefined,
-        stage: isStaged ?? false,
-        _rkwargs: true
-      });
+      const fileList = await withHyphaService("public/artifact-manager", async (am) => {
+        return await am.listFiles({
+          artifact_id: sessionId,
+          dir_path: path || undefined,
+          stage: isStaged ?? false,
+          _rkwargs: true
+        });
+      }, getServiceConfig());
 
       if (path === "") {
         setFiles(fileList || []);
@@ -170,14 +171,14 @@ export default function SessionArtifactDialog({
   };
 
   const handleDownload = async (filePath: string) => {
-    if (!artifactManager) return;
-
     try {
-      const url = await artifactManager.getFile({
-        artifact_id: sessionId,
-        file_path: filePath,
-        _rkwargs: true
-      });
+      const url = await withHyphaService("public/artifact-manager", async (am) => {
+        return await am.getFile({
+          artifact_id: sessionId,
+          file_path: filePath,
+          _rkwargs: true
+        });
+      }, getServiceConfig());
       window.open(url, "_blank");
     } catch (err) {
       console.error("Failed to download file:", err);
@@ -187,8 +188,6 @@ export default function SessionArtifactDialog({
   };
 
   const handleDelete = async (filePath: string, fileType: string) => {
-    if (!artifactManager) return;
-
     const confirmMsg = fileType === 'directory'
       ? `Delete folder "${filePath}" and all its contents?`
       : `Delete file "${filePath}"?`;
@@ -196,11 +195,13 @@ export default function SessionArtifactDialog({
     if (!window.confirm(confirmMsg)) return;
 
     try {
-      await artifactManager.removeFile({
-        artifact_id: sessionId,
-        file_path: filePath,
-        _rkwargs: true
-      });
+      await withHyphaService("public/artifact-manager", async (am) => {
+        await am.removeFile({
+          artifact_id: sessionId,
+          file_path: filePath,
+          _rkwargs: true
+        });
+      }, getServiceConfig());
 
       await loadFiles("", canUpload);
       setExpandedDirs({});
@@ -212,13 +213,14 @@ export default function SessionArtifactDialog({
   };
 
   const handleStageArtifact = async () => {
-    if (!artifactManager || operationLoading) return;
+    if (operationLoading) return;
 
     try {
       setOperationLoading('stage');
-      await artifactManager.edit(sessionId, { stage: true, _rkwargs: true });
-
-      const updatedArtifact = await artifactManager.read(sessionId, { stage: true, _rkwargs: true });
+      const updatedArtifact = await withHyphaService("public/artifact-manager", async (am) => {
+        await am.edit(sessionId, { stage: true, _rkwargs: true });
+        return await am.read(sessionId, { stage: true, _rkwargs: true });
+      }, getServiceConfig());
       setCurrentArtifact(updatedArtifact);
       setStatusMessage({ type: 'success', text: 'Artifact staged for editing' });
       setTimeout(() => setStatusMessage(null), 3000);
@@ -232,13 +234,14 @@ export default function SessionArtifactDialog({
   };
 
   const handleCommitArtifact = async () => {
-    if (!artifactManager || operationLoading) return;
+    if (operationLoading) return;
 
     try {
       setOperationLoading('commit');
-      await artifactManager.commit(sessionId, { _rkwargs: true });
-
-      const updatedArtifact = await artifactManager.read(sessionId, { stage: false, _rkwargs: true });
+      const updatedArtifact = await withHyphaService("public/artifact-manager", async (am) => {
+        await am.commit(sessionId, { _rkwargs: true });
+        return await am.read(sessionId, { stage: false, _rkwargs: true });
+      }, getServiceConfig());
       setCurrentArtifact(updatedArtifact);
 
       // After commit, artifact is no longer staged
@@ -256,15 +259,16 @@ export default function SessionArtifactDialog({
   };
 
   const handleDiscardArtifact = async () => {
-    if (!artifactManager || operationLoading) return;
+    if (operationLoading) return;
 
     if (!window.confirm("Discard all staged changes? This cannot be undone.")) return;
 
     try {
       setOperationLoading('discard');
-      await artifactManager.discard(sessionId, { _rkwargs: true });
-
-      const updatedArtifact = await artifactManager.read(sessionId, { stage: false, _rkwargs: true });
+      const updatedArtifact = await withHyphaService("public/artifact-manager", async (am) => {
+        await am.discard(sessionId, { _rkwargs: true });
+        return await am.read(sessionId, { stage: false, _rkwargs: true });
+      }, getServiceConfig());
       setCurrentArtifact(updatedArtifact);
 
       // After discard, artifact is no longer staged
@@ -282,7 +286,7 @@ export default function SessionArtifactDialog({
   };
 
   const handleUpload = async (files: FileList, targetPath: string = "") => {
-    if (!artifactManager || !files.length) return;
+    if (!files.length) return;
 
     if (!canUpload) {
       setStatusMessage({ type: 'error', text: 'Stage the artifact first to upload files' });
@@ -298,23 +302,26 @@ export default function SessionArtifactDialog({
       const fileArray = Array.from(files);
       let completedCount = 0;
 
-      for (const file of fileArray) {
-        const filePath = targetPath ? `${targetPath}/${file.name}` : file.name;
+      // Get fresh connection for upload operations
+      await withHyphaService("public/artifact-manager", async (am) => {
+        for (const file of fileArray) {
+          const filePath = targetPath ? `${targetPath}/${file.name}` : file.name;
 
-        const putUrl = await artifactManager.putFile({
-          artifact_id: sessionId,
-          file_path: filePath,
-          _rkwargs: true
-        });
+          const putUrl = await am.putFile({
+            artifact_id: sessionId,
+            file_path: filePath,
+            _rkwargs: true
+          });
 
-        await fetch(putUrl, {
-          method: 'PUT',
-          body: file,
-        });
+          await fetch(putUrl, {
+            method: 'PUT',
+            body: file,
+          });
 
-        completedCount++;
-        setUploadProgress((completedCount / fileArray.length) * 100);
-      }
+          completedCount++;
+          setUploadProgress((completedCount / fileArray.length) * 100);
+        }
+      }, getServiceConfig());
 
       await loadFiles("", canUpload);
       setExpandedDirs({});
@@ -338,16 +345,18 @@ export default function SessionArtifactDialog({
     }
 
     const folderName = window.prompt("Enter folder name:");
-    if (!folderName || !artifactManager) return;
+    if (!folderName) return;
 
     const folderPath = parentPath ? `${parentPath}/${folderName}` : folderName;
 
     try {
-      const putUrl = await artifactManager.putFile({
-        artifact_id: sessionId,
-        file_path: `${folderPath}/.gitkeep`,
-        _rkwargs: true
-      });
+      const putUrl = await withHyphaService("public/artifact-manager", async (am) => {
+        return await am.putFile({
+          artifact_id: sessionId,
+          file_path: `${folderPath}/.gitkeep`,
+          _rkwargs: true
+        });
+      }, getServiceConfig());
 
       await fetch(putUrl, {
         method: 'PUT',
@@ -392,16 +401,13 @@ export default function SessionArtifactDialog({
   };
 
   const handleCreateZip = async () => {
-    if (!server) return;
-
     try {
-      const serverUrl = server.config.public_base_url || server.config.server_url;
       const parts = sessionId.split('/');
       if (parts.length !== 2) {
         throw new Error('Invalid session ID format');
       }
       const [workspace, artifactAlias] = parts;
-      const zipUrl = `${serverUrl}/${workspace}/artifacts/${artifactAlias}/create-zip-file`;
+      const zipUrl = `${DEFAULT_SERVER_URL}/${workspace}/artifacts/${artifactAlias}/create-zip-file`;
 
       window.open(zipUrl, "_blank");
     } catch (err) {
@@ -461,7 +467,15 @@ export default function SessionArtifactDialog({
               )}
             </div>
             {/* Status Badge */}
-            {canUpload ? (
+            {loadingArtifact ? (
+              <span className="px-3 py-1.5 bg-gray-50 text-gray-500 text-xs font-semibold rounded-lg flex items-center gap-1.5 border border-gray-200">
+                <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Loading...
+              </span>
+            ) : canUpload ? (
               <span className="px-3 py-1.5 bg-amber-50 text-amber-700 text-xs font-semibold rounded-lg flex items-center gap-1.5 border border-amber-200">
                 <span className="w-2 h-2 bg-amber-500 rounded-full animate-pulse"></span>
                 Staged
@@ -478,7 +492,10 @@ export default function SessionArtifactDialog({
 
           {/* Stage/Commit Actions */}
           <div className="flex items-center gap-2 ml-4">
-            {canUpload ? (
+            {loadingArtifact ? (
+              // Show nothing while loading to avoid flickering buttons
+              null
+            ) : canUpload ? (
               <>
                 <button
                   onClick={handleCommitArtifact}
