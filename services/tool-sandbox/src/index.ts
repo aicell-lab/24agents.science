@@ -135,10 +135,10 @@ async function executeSessionCommand(
 
         child.on('exit', (code) => {
             const result = { stdout, stderr, code: code || 0 };
-            if (code !== 0) {
-                resolve({ ...result, error: `Exited with code ${code}` });
-            } else {
+            if (code === 0) {
                 resolve(result);
+            } else {
+                resolve({ ...result, error: `Exited with code ${code}` });
             }
         });
 
