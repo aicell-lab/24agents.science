@@ -6,13 +6,18 @@ import * as os from 'node:os';
 import * as crypto from 'node:crypto';
 import { spawn } from 'node:child_process';
 
+const DEFAULT_TIMEOUT_MS = 3600000; // 1 hour
+
+// Configuration Constants
 const WORKSPACE_DIR = process.env.WORKSPACE_DIR || path.join(os.homedir(), 'workspace');
 const SESSIONS_ROOT = process.env.SESSIONS_ROOT || path.join(WORKSPACE_DIR, 'sessions');
 const SERVER_URL = process.env.HYPHA_SERVER_URL || "https://hypha.aicell.io";
 const SERVICE_ID = process.env.SERVICE_ID || "tool-sandbox";
 const WORKSPACE = process.env.HYPHA_WORKSPACE;
 const TOKEN = process.env.HYPHA_TOKEN;
+const IN_DOCKER = process.env.IN_DOCKER === 'true';
 
+// Ensure directories exist
 if (!fs.existsSync(WORKSPACE_DIR)) fs.mkdirSync(WORKSPACE_DIR, { recursive: true });
 if (!fs.existsSync(SESSIONS_ROOT)) fs.mkdirSync(SESSIONS_ROOT, { recursive: true });
 
@@ -26,59 +31,88 @@ interface Session {
 
 const activeSessions = new Map<string, Session>();
 
-function startSession(timeoutMs: number = 3600000): Session {
+// Helper logger
+const logger = {
+    info: (msg: string) => console.log(`[INFO] ${msg}`),
+    error: (msg: string, e?: any) => console.error(`[ERROR] ${msg}`, e || '')
+};
+
+function createSessionConfig(sessionDir: string): SandboxRuntimeConfig {
+    return {
+        network: { 
+            allowedDomains: ["*"], 
+            allowLocalBinding: true, 
+            deniedDomains: [] 
+        },
+        filesystem: {
+            allowWrite: [sessionDir, "/tmp"],
+            denyWrite: [],
+            denyRead: ["/root/.ssh", "/etc/shadow"]
+        },
+        enableWeakerNestedSandbox: IN_DOCKER
+    };
+}
+
+function startSession(timeoutMs: number = DEFAULT_TIMEOUT_MS): Session {
     const id = crypto.randomUUID();
     const sessionDir = path.join(SESSIONS_ROOT, id);
     const pylibDir = path.join(sessionDir, 'pylib');
 
-    if (!fs.existsSync(sessionDir)) fs.mkdirSync(sessionDir, { recursive: true });
-    if (!fs.existsSync(pylibDir)) fs.mkdirSync(pylibDir, { recursive: true });
-
-    const timeoutTimer = setTimeout(() => destroySession(id), timeoutMs);
+    // Create session directories
+    fs.mkdirSync(sessionDir, { recursive: true });
+    fs.mkdirSync(pylibDir, { recursive: true });
 
     const session: Session = {
         id,
         dir: sessionDir,
         pylibDir,
-        timeoutTimer,
-        config: {
-            network: { allowedDomains: ["*"], allowLocalBinding: true, deniedDomains: [] },
-            filesystem: {
-                allowWrite: [sessionDir, "/tmp"],
-                denyWrite: [],
-                denyRead: ["/root/.ssh", "/etc/shadow"]
-            },
-            enableWeakerNestedSandbox: process.env.IN_DOCKER === 'true'
-        }
+        timeoutTimer: setTimeout(() => destroySession(id), timeoutMs),
+        config: createSessionConfig(sessionDir)
     };
 
     activeSessions.set(id, session);
-    console.log(`Session started: ${id}`);
+    logger.info(`Session started: ${id}`);
     return session;
 }
 
-async function destroySession(id: string) {
+async function destroySession(id: string): Promise<void> {
     const session = activeSessions.get(id);
     if (!session) return;
 
     clearTimeout(session.timeoutTimer);
     activeSessions.delete(id);
-    console.log(`Destroying session: ${id}`);
+    logger.info(`Destroying session: ${id}`);
 
     try {
         await fs.promises.rm(session.dir, { recursive: true, force: true });
     } catch (e) {
-        console.error(`Cleanup failed for ${id}:`, e);
+        logger.error(`Cleanup failed for ${id}:`, e);
     }
 }
 
-async function executeSessionCommand(session: Session, command: string, args: string[] = [], cwd?: string) {
+interface CommandResult {
+    stdout: string;
+    stderr: string;
+    code: number;
+    error?: string;
+}
+
+async function executeSessionCommand(
+    session: Session, 
+    command: string, 
+    args: string[] = [], 
+    cwd?: string
+): Promise<CommandResult> {
     const fullCommand = `${command} ${args.join(' ')}`;
     const workingDir = cwd || session.dir;
     
-    console.log(`[${session.id}] Executing: ${fullCommand}`);
+    logger.info(`[${session.id}] Executing: ${fullCommand}`);
 
-    const sandboxedCommandParts = await SandboxManager.wrapWithSandbox(fullCommand, undefined, session.config);
+    const sandboxedCommandParts = await SandboxManager.wrapWithSandbox(
+        fullCommand, 
+        undefined, 
+        session.config
+    );
 
     const env = {
         ...process.env,
@@ -100,33 +134,42 @@ async function executeSessionCommand(session: Session, command: string, args: st
         child.stderr.on('data', d => stderr += d.toString());
 
         child.on('exit', (code) => {
-            if (code === 0) resolve({ stdout, stderr, code });
-            else resolve({ stdout, stderr, code, error: `Exited with code ${code}` });
+            const result = { stdout, stderr, code: code || 0 };
+            if (code !== 0) {
+                resolve({ ...result, error: `Exited with code ${code}` });
+            } else {
+                resolve(result);
+            }
         });
 
         child.on('error', (err) => {
             const e = new Error(err.message);
-            Object.assign(e, { stdout, stderr });
+            // @ts-ignore
+            e.stdout = stdout; 
+            // @ts-ignore
+            e.stderr = stderr;
             reject(e);
         });
     });
 }
 
-async function main() {
-    console.log("Initializing Sandbox...");
+async function initializeGlobalSandbox() {
+    logger.info("Initializing Sandbox...");
     await SandboxManager.initialize({
         network: { allowedDomains: ["*"], deniedDomains: [], allowLocalBinding: true },
         filesystem: { allowWrite: [WORKSPACE_DIR, "/tmp"], denyRead: [], denyWrite: [] },
-        enableWeakerNestedSandbox: process.env.IN_DOCKER === 'true'
+        enableWeakerNestedSandbox: IN_DOCKER
     });
+}
 
-    const client = await hyphaWebsocketClient.connectToServer({
-        server_url: SERVER_URL, 
-        token: TOKEN, 
-        workspace: WORKSPACE
-    });
+function getSession(sessionId: string): Session {
+    const session = activeSessions.get(sessionId);
+    if (!session) throw new Error(`Session ${sessionId} not found`);
+    return session;
+}
 
-    console.log("Connected. Registering service...");
+async function registerHyphaService(client: any) {
+    logger.info("Connected. Registering service...");
 
     await client.registerService({
         id: SERVICE_ID,
@@ -134,27 +177,24 @@ async function main() {
         description: "Secure tool execution environment with session isolation.",
         config: { visibility: "public", require_context: true },
 
-        create_session: async (timeout: number = 3600000, context: any = null) => {
+        create_session: async (timeout: number = DEFAULT_TIMEOUT_MS) => {
             const session = startSession(timeout);
             return session.id;
         },
 
         run_command: async (session_id: string, cmd: string, args: string[] = [], cwd?: string) => {
-            const session = activeSessions.get(session_id);
-            if (!session) throw new Error(`Session ${session_id} not found`);
-            return executeSessionCommand(session, cmd, args, cwd);
+            return executeSessionCommand(getSession(session_id), cmd, args, cwd);
         },
 
         install_pip: async (session_id: string, pkg: string) => {
-            const session = activeSessions.get(session_id);
-            if (!session) throw new Error(`Session ${session_id} not found`);
-            return executeSessionCommand(session, 'pip', ['install', pkg, '--target', session.pylibDir]);
+            const session = getSession(session_id);
+            return executeSessionCommand(
+                session, 'pip', ['install', pkg, '--target', session.pylibDir]
+            );
         },
 
         install_npm: async (session_id: string, pkg: string) => {
-            const session = activeSessions.get(session_id);
-            if (!session) throw new Error(`Session ${session_id} not found`);
-            return executeSessionCommand(session, 'npm', ['install', pkg]);
+            return executeSessionCommand(getSession(session_id), 'npm', ['install', pkg]);
         },
 
         destroy_session: async (session_id: string) => {
@@ -162,7 +202,24 @@ async function main() {
         }
     });
     
-    console.log(`Service ready: ${SERVICE_ID}`);
+    logger.info(`Service ready: ${SERVICE_ID}`);
 }
 
-main().catch(console.error);
+async function main() {
+    try {
+        await initializeGlobalSandbox();
+
+        const client = await hyphaWebsocketClient.connectToServer({
+            server_url: SERVER_URL, 
+            token: TOKEN, 
+            workspace: WORKSPACE
+        });
+
+        await registerHyphaService(client);
+    } catch (error) {
+        logger.error("Service initialization failed:", error);
+        process.exit(1);
+    }
+}
+
+main();
