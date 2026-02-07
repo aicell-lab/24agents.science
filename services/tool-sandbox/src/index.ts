@@ -177,34 +177,112 @@ async function registerHyphaService(client: any) {
 
     await client.registerService({
         id: SERVICE_ID,
-        type: "mcp",
         name: "Sandboxed Tool Environment",
         description: "Secure tool execution environment with session isolation.",
         config: { visibility: "public" },
 
-        create_session: async (timeout: number = DEFAULT_TIMEOUT_MS) => {
-            const session = startSession(timeout);
-            return session.id;
-        },
+        create_session: Object.assign(
+            async (timeout: number = DEFAULT_TIMEOUT_MS) => {
+                const session = startSession(timeout);
+                return session.id;
+            },
+            {
+                __schema__: {
+                    name: "create_session",
+                    description: "Create a new sandbox session",
+                    parameters: {
+                        type: "object",
+                        properties: {
+                            timeout: { type: "number", description: "Timeout in milliseconds" }
+                        }
+                    }
+                }
+            }
+        ),
 
-        run_command: async (session_id: string, cmd: string, args: string[] = [], cwd?: string) => {
-            return executeSessionCommand(getSession(session_id), cmd, args, cwd);
-        },
+        run_command: Object.assign(
+            async (session_id: string, cmd: string, args: string[] = [], cwd?: string) => {
+                return executeSessionCommand(getSession(session_id), cmd, args, cwd);
+            },
+            {
+                __schema__: {
+                    name: "run_command",
+                    description: "Run a shell command in the session",
+                    parameters: {
+                        type: "object",
+                        properties: {
+                            session_id: { type: "string" },
+                            cmd: { type: "string" },
+                            args: { type: "array", items: { type: "string" } },
+                            cwd: { type: "string" }
+                        },
+                        required: ["session_id", "cmd"]
+                    }
+                }
+            }
+        ),
 
-        install_pip: async (session_id: string, pkg: string) => {
-            const session = getSession(session_id);
-            return executeSessionCommand(
-                session, 'pip', ['install', pkg, '--target', session.pylibDir]
-            );
-        },
+        install_pip: Object.assign(
+            async (session_id: string, pkg: string) => {
+                const session = getSession(session_id);
+                return executeSessionCommand(
+                    session, 'pip', ['install', pkg, '--target', session.pylibDir]
+                );
+            },
+            {
+                __schema__: {
+                    name: "install_pip",
+                    description: "Install a Python package via pip",
+                    parameters: {
+                        type: "object",
+                        properties: {
+                            session_id: { type: "string" },
+                            pkg: { type: "string" }
+                        },
+                        required: ["session_id", "pkg"]
+                    }
+                }
+            }
+        ),
 
-        install_npm: async (session_id: string, pkg: string) => {
-            return executeSessionCommand(getSession(session_id), 'npm', ['install', pkg]);
-        },
+        install_npm: Object.assign(
+            async (session_id: string, pkg: string) => {
+                return executeSessionCommand(getSession(session_id), 'npm', ['install', pkg]);
+            },
+            {
+                __schema__: {
+                    name: "install_npm",
+                    description: "Install a Node.js package via npm",
+                    parameters: {
+                        type: "object",
+                        properties: {
+                            session_id: { type: "string" },
+                            pkg: { type: "string" }
+                        },
+                        required: ["session_id", "pkg"]
+                    }
+                }
+            }
+        ),
 
-        destroy_session: async (session_id: string) => {
-            return destroySession(session_id);
-        }
+        destroy_session: Object.assign(
+            async (session_id: string) => {
+                return destroySession(session_id);
+            },
+            {
+                __schema__: {
+                    name: "destroy_session",
+                    description: "Destroy a sandbox session",
+                    parameters: {
+                        type: "object",
+                        properties: {
+                            session_id: { type: "string" }
+                        },
+                        required: ["session_id"]
+                    }
+                }
+            }
+        )
     });
     
     logger.info(`Service ready: ${SERVICE_ID}`);
