@@ -26,3 +26,6 @@ bioimageio_test_reports/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+services/tool-sandbox/node_modules/*
+geo-data/*

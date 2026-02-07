@@ -8,7 +8,7 @@ import { Grid } from '@mui/material';
 import TagSelection from './TagSelection';
 
 interface ResourceGridProps {
-  type?: 'tool' | 'data' | 'agent' ;
+  type?: 'tool' | 'data' | 'agent' | 'datasets';
 }
 
 interface PaginationProps {
@@ -144,7 +144,8 @@ export const ArtifactGrid: React.FC<ResourceGridProps> = ({ type }) => {
       'datasets': 'dataset',
       'applications': 'application',
       'notebooks': 'notebook',
-      'agents': 'agent'
+      'agents': 'agent',
+      'tools': 'tool',
     };
     return typeMap[path] || null;
   }, [location.pathname]);
