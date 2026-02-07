@@ -177,6 +177,7 @@ async function registerHyphaService(client: any) {
 
     await client.registerService({
         id: SERVICE_ID,
+        type: "mcp",
         name: "Sandboxed Tool Environment",
         description: "Secure tool execution environment with session isolation.",
         config: { visibility: "public", require_context: true },
