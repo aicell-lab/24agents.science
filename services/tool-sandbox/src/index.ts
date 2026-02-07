@@ -180,7 +180,7 @@ async function registerHyphaService(client: any) {
         type: "mcp",
         name: "Sandboxed Tool Environment",
         description: "Secure tool execution environment with session isolation.",
-        config: { visibility: "public", require_context: true },
+        config: { visibility: "public" },
 
         create_session: async (timeout: number = DEFAULT_TIMEOUT_MS) => {
             const session = startSession(timeout);
