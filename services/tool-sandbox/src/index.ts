@@ -4,7 +4,14 @@ import WebSocket from 'ws';
 global.WebSocket = WebSocket;
 
 import { hyphaWebsocketClient } from 'hypha-rpc';
-import * as path from 'node:path';
+// @ts-ignore
+global.WebSocket = WebSocket;
+
+// Polyfill window for Hypha RPC if needed (sometimes required by browser builds running in node)
+if (typeof window === 'undefined') {
+    // @ts-ignore
+    global.window = global;
+}
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as crypto from 'node:crypto';
@@ -287,6 +294,31 @@ async function registerHyphaService(client: any) {
         )
     });
     
+    // Register separate health service with dynamic client ID if we are using a fixed one
+    if (CLIENT_ID) {
+        try {
+            // We need a new connection for the dynamic client ID
+            logger.info("Registering health check service on separate connection...");
+            const healthClient = await hyphaWebsocketClient.connectToServer({
+                server_url: SERVER_URL,
+                token: TOKEN,
+                workspace: WORKSPACE
+                // No client_id, so it's random
+            });
+            
+            await healthClient.registerService({
+                id: "health",
+                name: "Health Check",
+                description: "Health check service for the pod",
+                config: { visibility: "public" },
+                ping: async () => "pong"
+            });
+            logger.info("Health check service registered.");
+        } catch (e) {
+            logger.error("Failed to register health service:", e);
+        }
+    }
+
     logger.info(`Service ready: ${SERVICE_ID}`);
 }
 
