@@ -14,9 +14,9 @@ if (typeof window === 'undefined') {
 if (typeof document === 'undefined') {
     // @ts-ignore
     global.document = {
-        currentScript: { src: 'http://localhost/mock-script.js' },
-        createElement: () => ({}),
-        getElementsByTagName: () => [],
-        head: {}
-    };
+        currentScript: { src: 'http://localhost/mock-script.js' } as any,
+        createElement: () => ({} as any),
+        getElementsByTagName: () => ([] as any),
+        head: {} as any
+    } as any;
 }
