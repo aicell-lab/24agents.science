@@ -20,6 +20,8 @@ const SERVICE_ID = process.env.SERVICE_ID || "tool-sandbox";
 const WORKSPACE = process.env.HYPHA_WORKSPACE;
 const TOKEN = process.env.HYPHA_TOKEN;
 const IN_DOCKER = process.env.IN_DOCKER === 'true';
+const CLIENT_ID = process.env.CLIENT_ID || undefined; // If undefined, Hypha generates one
+
 
 // Ensure directories exist
 if (!fs.existsSync(WORKSPACE_DIR)) fs.mkdirSync(WORKSPACE_DIR, { recursive: true });
@@ -292,11 +294,15 @@ async function main() {
     try {
         await initializeGlobalSandbox();
 
-        const client = await hyphaWebsocketClient.connectToServer({
-            server_url: SERVER_URL, 
-            token: TOKEN, 
-            workspace: WORKSPACE
-        });
+        const config = {
+            server_url: SERVER_URL,
+            token: TOKEN,
+            workspace: WORKSPACE,
+            client_id: CLIENT_ID
+        };
+        logger.info(`Connecting to Hypha at ${SERVER_URL} workspace=${WORKSPACE} client_id=${CLIENT_ID || 'auto'}`);
+
+        const client = await hyphaWebsocketClient.connectToServer(config);
 
         await registerHyphaService(client);
     } catch (error) {
