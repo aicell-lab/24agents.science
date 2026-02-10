@@ -56,7 +56,12 @@ const MyArtifactCard: React.FC<AdminResourceCardProps> = ({
   const [mcpCopied, setMcpCopied] = useState(false);
   const copyMcp = (e: React.MouseEvent) => {
     e.stopPropagation();
-    const mcpUrl = 'https://hypha.aicell.io/hypha-agents/mcp/biomni/mcp';
+    let mcpUrl = 'https://hypha.aicell.io/hypha-agents/mcp/biomni/mcp';
+    
+    if (artifactType === 'dataset') {
+      mcpUrl = `https://hypha.aicell.io/24agents-science/artifacts/${id.split('/').pop()}`;
+    }
+
     navigator.clipboard.writeText(mcpUrl)
       .then(() => {
         setMcpCopied(true);

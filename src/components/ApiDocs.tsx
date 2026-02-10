@@ -120,7 +120,7 @@ async def interact_with_model_zoo():
     )
 
     # Get the artifact manager service
-    artifact_manager = await server.get_service("public/services/artifact-manager")
+    artifact_manager = await server.get_service("public/artifact-manager")
 
     # List available models
     models = await artifact_manager.list(
@@ -221,7 +221,7 @@ async function interactWithModelZoo() {
     });
 
     // Get the artifact manager service
-    const artifactManager = await server.getService("public/services/artifact-manager", {
+    const artifactManager = await server.getService("public/artifact-manager", {
         case_conversion: "camel"
     });
 
