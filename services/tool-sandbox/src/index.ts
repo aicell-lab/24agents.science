@@ -1,32 +1,13 @@
+import './polyfills'; // MUST BE FIRST
 import { SandboxManager, SandboxRuntimeConfig } from '@anthropic-ai/sandbox-runtime';
 import WebSocket from 'ws';
-// @ts-ignore
-global.WebSocket = WebSocket;
-
-// Polyfill window for Hypha RPC if needed (sometimes required by browser builds running in node)
-if (typeof window === 'undefined') {
-    // @ts-ignore
-    global.window = global;
-}
-
-// Polyfill document for Hypha RPC Webpack "Automatic publicPath" check
-// This prevents "Automatic publicPath is not supported in this browser" error
-if (typeof document === 'undefined') {
-    // @ts-ignore
-    global.document = {
-        // Webpack checks document.currentScript.src to determine publicPath
-        currentScript: { src: 'http://localhost/mock-script.js' },
-        createElement: () => ({}),
-        getElementsByTagName: () => [],
-        head: {}
-    };
-}
 
 import { hyphaWebsocketClient } from 'hypha-rpc';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as crypto from 'node:crypto';
 import { spawn } from 'node:child_process';
+import path from 'node:path';
 
 const DEFAULT_TIMEOUT_MS = 3600000; // 1 hour
 

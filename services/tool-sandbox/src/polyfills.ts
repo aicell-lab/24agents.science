@@ -1,0 +1,22 @@
+
+import WebSocket from 'ws';
+
+// @ts-ignore
+global.WebSocket = WebSocket;
+
+// Polyfill window for Hypha RPC
+if (typeof window === 'undefined') {
+    // @ts-ignore
+    global.window = global;
+}
+
+// Polyfill document for Hypha RPC Webpack "Automatic publicPath" check
+if (typeof document === 'undefined') {
+    // @ts-ignore
+    global.document = {
+        currentScript: { src: 'http://localhost/mock-script.js' },
+        createElement: () => ({}),
+        getElementsByTagName: () => [],
+        head: {}
+    };
+}
