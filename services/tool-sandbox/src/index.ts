@@ -9,6 +9,19 @@ if (typeof window === 'undefined') {
     global.window = global;
 }
 
+// Polyfill document for Hypha RPC Webpack "Automatic publicPath" check
+// This prevents "Automatic publicPath is not supported in this browser" error
+if (typeof document === 'undefined') {
+    // @ts-ignore
+    global.document = {
+        // Webpack checks document.currentScript.src to determine publicPath
+        currentScript: { src: 'http://localhost/mock-script.js' },
+        createElement: () => ({}),
+        getElementsByTagName: () => [],
+        head: {}
+    };
+}
+
 import { hyphaWebsocketClient } from 'hypha-rpc';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
