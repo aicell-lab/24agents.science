@@ -3,15 +3,13 @@ import WebSocket from 'ws';
 // @ts-ignore
 global.WebSocket = WebSocket;
 
-import { hyphaWebsocketClient } from 'hypha-rpc';
-// @ts-ignore
-global.WebSocket = WebSocket;
-
 // Polyfill window for Hypha RPC if needed (sometimes required by browser builds running in node)
 if (typeof window === 'undefined') {
     // @ts-ignore
     global.window = global;
 }
+
+import { hyphaWebsocketClient } from 'hypha-rpc';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as crypto from 'node:crypto';
