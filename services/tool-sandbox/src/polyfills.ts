@@ -7,7 +7,12 @@ global.WebSocket = WebSocket;
 // Polyfill window for Hypha RPC
 if (typeof window === 'undefined') {
     // @ts-ignore
-    global.window = global;
+    global.window = {
+        ...global,
+        addEventListener: (type: string, listener: any) => {},
+        removeEventListener: (type: string, listener: any) => {},
+        dispatchEvent: (event: any) => false,
+    } as any;
 }
 
 // Polyfill document for Hypha RPC Webpack "Automatic publicPath" check
