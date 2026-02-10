@@ -28,6 +28,7 @@ if (!fs.existsSync(SESSIONS_ROOT)) fs.mkdirSync(SESSIONS_ROOT, { recursive: true
 
 interface Session {
     id: string;
+    userId?: string;
     dir: string;
     pylibDir: string;
     config: SandboxRuntimeConfig;
@@ -58,7 +59,7 @@ function createSessionConfig(sessionDir: string): SandboxRuntimeConfig {
     };
 }
 
-function startSession(timeoutMs: number = DEFAULT_TIMEOUT_MS): Session {
+function startSession(timeoutMs: number = DEFAULT_TIMEOUT_MS, userId?: string): Session {
     const id = crypto.randomUUID();
     const sessionDir = path.join(SESSIONS_ROOT, id);
     const pylibDir = path.join(sessionDir, 'pylib');
@@ -69,6 +70,7 @@ function startSession(timeoutMs: number = DEFAULT_TIMEOUT_MS): Session {
 
     const session: Session = {
         id,
+        userId,
         dir: sessionDir,
         pylibDir,
         timeoutTimer: setTimeout(() => destroySession(id), timeoutMs),
@@ -76,8 +78,17 @@ function startSession(timeoutMs: number = DEFAULT_TIMEOUT_MS): Session {
     };
 
     activeSessions.set(id, session);
-    logger.info(`Session started: ${id}`);
+    logger.info(`Session started: ${id} (user: ${userId || 'anonymous'})`);
     return session;
+}
+
+function findSessionByUser(userId: string): Session | undefined {
+    for (const session of activeSessions.values()) {
+        if (session.userId === userId) {
+            return session;
+        }
+    }
+    return undefined;
 }
 
 async function destroySession(id: string): Promise<void> {
@@ -180,11 +191,15 @@ async function registerHyphaService(client: any) {
         id: SERVICE_ID,
         name: "Sandboxed Tool Environment",
         description: "Secure tool execution environment with session isolation.",
-        config: { visibility: "public" },
+        config: { 
+            visibility: "public",
+            require_context: true
+        },
 
         create_session: Object.assign(
-            async (timeout: number = DEFAULT_TIMEOUT_MS) => {
-                const session = startSession(timeout);
+            async (timeout: number = DEFAULT_TIMEOUT_MS, context: any = {}) => {
+                const userId = context?.user?.id || context?.user?.email;
+                const session = startSession(timeout, userId);
                 return session.id;
             },
             {
@@ -202,29 +217,52 @@ async function registerHyphaService(client: any) {
         ),
 
         run_command: Object.assign(
-            async (session_id: string, cmd: string, args: string[] = [], cwd?: string) => {
-                return executeSessionCommand(getSession(session_id), cmd, args, cwd);
+            async (session_id: string | undefined | null, cmd: string, args: string[] = [], cwd?: string, context?: any) => {
+                let targetSessionId = session_id;
+                
+                // If session_id is not provided, try to find an existing session for the user
+                if (!targetSessionId) {
+                    const userId = context?.user?.id || context?.user?.email;
+                    if (userId) {
+                        const existingSession = findSessionByUser(userId);
+                        if (existingSession) {
+                            targetSessionId = existingSession.id;
+                        } else {
+                            // Create a new session for the user
+                            const newSession = startSession(DEFAULT_TIMEOUT_MS, userId);
+                            targetSessionId = newSession.id;
+                        }
+                    } else {
+                        throw new Error("Session ID is required when no user context is available.");
+                    }
+                }
+
+                if (!targetSessionId) {
+                     throw new Error("Failed to determine session ID.");
+                }
+
+                return executeSessionCommand(getSession(targetSessionId), cmd, args, cwd);
             },
             {
                 __schema__: {
                     name: "run_command",
-                    description: "Run a shell command in the session",
+                    description: "Run a shell command in the session. If session_id is not provided, uses or creates a session for the authenticated user.",
                     parameters: {
                         type: "object",
                         properties: {
-                            session_id: { type: "string" },
+                            session_id: { type: "string", description: "Optional session ID. If omitted, uses user context." },
                             cmd: { type: "string" },
                             args: { type: "array", items: { type: "string" } },
                             cwd: { type: "string" }
                         },
-                        required: ["session_id", "cmd"]
+                        required: ["cmd"]
                     }
                 }
             }
         ),
 
         install_pip: Object.assign(
-            async (session_id: string, pkg: string) => {
+            async (session_id: string, pkg: string, context: any = {}) => {
                 const session = getSession(session_id);
                 return executeSessionCommand(
                     session, 'pip', ['install', pkg, '--target', session.pylibDir]
@@ -247,7 +285,7 @@ async function registerHyphaService(client: any) {
         ),
 
         install_npm: Object.assign(
-            async (session_id: string, pkg: string) => {
+            async (session_id: string, pkg: string, context: any = {}) => {
                 return executeSessionCommand(getSession(session_id), 'npm', ['install', pkg]);
             },
             {
@@ -267,7 +305,7 @@ async function registerHyphaService(client: any) {
         ),
 
         destroy_session: Object.assign(
-            async (session_id: string) => {
+            async (session_id: string, context: any = {}) => {
                 return destroySession(session_id);
             },
             {
