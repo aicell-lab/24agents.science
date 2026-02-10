@@ -17,6 +17,12 @@ if (typeof window === 'undefined') {
     global.window.dispatchEvent = () => false;
 }
 
+if (typeof MessageChannel === 'undefined') {
+    const { MessageChannel, MessagePort } = require('worker_threads');
+    global.MessageChannel = MessageChannel;
+    global.MessagePort = MessagePort;
+}
+
 // Polyfill document for Hypha RPC Webpack "Automatic publicPath" check
 if (typeof document === 'undefined') {
     // @ts-ignore
