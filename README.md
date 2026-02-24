@@ -20,3 +20,14 @@ The remote command execution service lives in
 	`services/tool-sandbox/python-client/test_remote_sandbox_service.py`
 
 See `services/tool-sandbox/README.md` for deployment and test details.
+
+## Query Setup Utilities
+
+Reusable query-discovery helpers are in `scripts/query-setup`:
+
+- `list_mcp_tools.py` for enumerating searchable MCP tools
+- `extract_tags.py` for extracting unique artifact tags
+- `unique_tags.txt` as a generated tag snapshot
+
+`src/components/Query.test.tsx` provides a high-level integration test
+for `Query` service registration and compose flow.
