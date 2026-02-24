@@ -50,7 +50,10 @@ const SCHEMAS = {
     }
 };
 
-const searchItems = async (params: { query: string }, context: object | null = null) => {
+export const searchItems = async (
+    params: { query: string },
+    context: object | null = null
+) => {
     try {
         const query = params.query;
         let url = `https://hypha.aicell.io/24agents-science/artifacts/24agents.science/children?stage=false&limit=10000&order_by=manifest.score>`;
@@ -76,6 +79,18 @@ const searchItems = async (params: { query: string }, context: object | null = n
     }
 };
 
+const getServiceIdCandidates = (source?: string): string[] => {
+    if (!source) {
+        return ['hypha-agents/biomni', 'biomni'];
+    }
+
+    if (source.includes('/')) {
+        return [source];
+    }
+
+    return [`hypha-agents/${source}`, source];
+};
+
 const processArtifact = async (
     artifact: any,
     composedClient: any,
@@ -87,9 +102,7 @@ const processArtifact = async (
         return;
     }
 
-    const serviceId = artifact.manifest.source
-        ? `hypha-agents/${artifact.manifest.source}`
-        : 'hypha-agents/biomni';
+    const serviceIdCandidates = getServiceIdCandidates(artifact.manifest.source);
 
     const baseFunctionName = artifact.manifest.function_name
         || artifact.id.split('/').pop()
@@ -104,14 +117,26 @@ const processArtifact = async (
     }
 
     try {
-        const service = await composedClient.getService(serviceId);
-        const func = service[baseFunctionName];
+        let boundFunction: any;
 
-        if (func) {
-            const schema = func.__schema__;
+        for (const serviceId of serviceIdCandidates) {
+            try {
+                const service = await composedClient.getService(serviceId);
+                const func = service[baseFunctionName];
+                if (func) {
+                    boundFunction = func;
+                    break;
+                }
+            } catch (innerError) {
+                continue;
+            }
+        }
+
+        if (boundFunction) {
+            const schema = boundFunction.__schema__;
             serviceFunctions[functionName] = Object.assign(
                 async (...args: any[]) => {
-                    return await func(...args);
+                    return await boundFunction(...args);
                 },
                 { __schema__: schema }
             );
@@ -121,59 +146,72 @@ const processArtifact = async (
     }
 };
 
-const composeMcp = async (params: { toolIds: string[] }, context: object | null = null) => {
+export const composeMcp = async (
+    params: { toolIds: string[] },
+    context: object | null = null
+) => {
     const toolIds = params.toolIds;
     console.log("composeMcp called with:", toolIds);
-    // Connect to Hypha server for the new service
-    const composedClient = await hyphaWebsocketClient.connectToServer({
-        server_url: 'https://hypha.aicell.io',
-        client_id: 'composer-client-' + Math.random().toString(36).substring(7),
-    });
+    let composedClient: any = null;
 
-    // Fetch artifacts
-    const artifacts = [];
-    for (const id of toolIds) {
-        const [workspace, artifactName] = id.includes('/')
-            ? id.split('/')
-            : ['24agents-science', id];
-        const url = `https://hypha.aicell.io/${workspace}/artifacts/${artifactName}`;
-        try {
-            const resp = await fetch(url);
-            if (resp.ok) artifacts.push(await resp.json());
-        } catch (e) {
-            console.error(`Failed to fetch artifact ${id}`, e);
+    try {
+        composedClient = await hyphaWebsocketClient.connectToServer({
+            server_url: 'https://hypha.aicell.io',
+            client_id: 'composer-client-' + Math.random().toString(36).substring(7),
+        });
+
+        const artifacts = [];
+        for (const id of toolIds) {
+            const [workspace, artifactName] = id.includes('/')
+                ? id.split('/')
+                : ['24agents-science', id];
+            const url = `https://hypha.aicell.io/${workspace}/artifacts/${artifactName}`;
+            try {
+                const resp = await fetch(url);
+                if (resp.ok) artifacts.push(await resp.json());
+            } catch (e) {
+                console.error(`Failed to fetch artifact ${id}`, e);
+            }
+        }
+
+        const serviceFunctions: any = {};
+        const functionNameCounts: Record<string, number> = {};
+
+        for (const artifact of artifacts) {
+            await processArtifact(artifact, composedClient, serviceFunctions, functionNameCounts);
+        }
+
+        if (Object.keys(serviceFunctions).length === 0) {
+            throw new Error('No valid tools found to compose.');
+        }
+
+        const composedServiceId = 'composed-' + Date.now();
+        await composedClient.registerService({
+            type: 'composed-mcp-service',
+            id: composedServiceId,
+            name: 'Composed MCP Service',
+            description: `Composed service with ${Object.keys(serviceFunctions).length} functions`,
+            config: {
+                visibility: 'public',
+                require_context: false,
+            },
+            ...serviceFunctions
+        });
+
+        const serverUrl = composedClient.config.server_url || 'https://hypha.aicell.io';
+        const builtServiceUrl = `${serverUrl}/${composedClient.config.workspace}/services/${composedServiceId}`;
+        const mcpUrl = builtServiceUrl.replace('/services/', '/mcp/') + '/mcp';
+
+        return mcpUrl;
+    } finally {
+        if (composedClient && typeof composedClient.disconnect === 'function') {
+            try {
+                await composedClient.disconnect();
+            } catch (disconnectError) {
+                console.warn('Failed to disconnect composed client', disconnectError);
+            }
         }
     }
-
-    const serviceFunctions: any = {};
-    const functionNameCounts: Record<string, number> = {};
-
-    for (const artifact of artifacts) {
-        await processArtifact(artifact, composedClient, serviceFunctions, functionNameCounts);
-    }
-
-    if (Object.keys(serviceFunctions).length === 0) {
-        throw new Error('No valid tools found to compose.');
-    }
-
-    const composedServiceId = 'composed-' + Date.now();
-    await composedClient.registerService({
-        type: 'composed-mcp-service',
-        id: composedServiceId,
-        name: 'Composed MCP Service',
-        description: `Composed service with ${Object.keys(serviceFunctions).length} functions`,
-        config: {
-            visibility: 'public',
-            require_context: false,
-        },
-        ...serviceFunctions
-    });
-
-    const serverUrl = composedClient.config.server_url || 'https://hypha.aicell.io';
-    const builtServiceUrl = `${serverUrl}/${composedClient.config.workspace}/services/${composedServiceId}`;
-    const mcpUrl = builtServiceUrl.replace('/services/', '/mcp/') + '/mcp';
-
-    return mcpUrl;
 };
 
 const Query: React.FC<{ serviceId?: string }> = ({ serviceId: customServiceId }) => {

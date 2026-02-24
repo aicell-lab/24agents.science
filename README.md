@@ -31,3 +31,30 @@ Reusable query-discovery helpers are in `scripts/query-setup`:
 
 `src/components/Query.test.tsx` provides a high-level integration test
 for `Query` service registration and compose flow.
+
+## Live Testing
+
+Use these commands for fully real, no-mock checks against live Hypha services.
+
+### Query service (real search + real compose)
+
+```bash
+pnpm run test:live
+```
+
+This runs `src/components/Query.live.test.ts` and verifies:
+- `search_items` returns live results
+- `compose_mcp` returns a real MCP URL for a live tool
+
+### Tool-sandbox remote execution (real command execution)
+
+```bash
+python3 -m unittest -v \
+	services/tool-sandbox/python-client/test_remote_sandbox_service.py
+```
+
+Optional environment variables:
+- `HYPHA_SERVER_URL` (default: `https://hypha.aicell.io`)
+- `HYPHA_WORKSPACE`
+- `TOOL_SANDBOX_SERVICE_ID` (default: `tool-sandbox`)
+- `HYPHA_TOKEN` (required for private workspaces)

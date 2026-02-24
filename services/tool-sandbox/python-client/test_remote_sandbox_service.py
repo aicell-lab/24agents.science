@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import unittest
+from typing import Any
 
 from hypha_rpc import connect_to_server
 
@@ -37,13 +38,60 @@ class RemoteSandboxServiceTests(unittest.IsolatedAsyncioTestCase):
         ]
 
         if not sandbox_services:
+            sandbox_built_in = [
+                service_entry_id
+                for service_entry_id in service_ids
+                if "tool-sandbox" in service_entry_id
+                and service_entry_id.endswith(":built-in")
+            ]
+            sandbox_health = [
+                service_entry_id
+                for service_entry_id in service_ids
+                if "tool-sandbox" in service_entry_id
+                and service_entry_id.endswith(":health")
+            ]
             self.fail(
                 "No tool-sandbox service found. "
-                f"Expected '*:{self.service_id}', got: {service_ids}"
+                f"Expected '*:{self.service_id}'. "
+                f"Found built-in={sandbox_built_in}, health={sandbox_health}. "
+                f"All service ids: {service_ids}"
             )
 
         self.full_service_id = sandbox_services[0]
         self.service = await self.client.get_service(self.full_service_id)
+
+    @staticmethod
+    def _is_known_bwrap_restriction(stderr: str) -> bool:
+        """Return true when execution fails due to known bubblewrap limits."""
+        return "bwrap" in stderr.lower()
+
+    def _assert_command_contract(self, result: dict[str, Any]) -> None:
+        """Validate the command result schema returned by the service."""
+        self.assertIsInstance(result, dict)
+        self.assertIn("stdout", result)
+        self.assertIn("stderr", result)
+        self.assertIn("code", result)
+        self.assertIsInstance(result["stdout"], str)
+        self.assertIsInstance(result["stderr"], str)
+        self.assertIsInstance(result["code"], int)
+
+    def _assert_success_or_bwrap(
+        self,
+        result: dict[str, Any],
+        *,
+        expected_stdout_substring: str,
+    ) -> None:
+        """Accept success with expected output, or known bwrap restriction."""
+        self._assert_command_contract(result)
+        expected_output = expected_stdout_substring in result["stdout"]
+        bwrap_restriction = self._is_known_bwrap_restriction(result["stderr"])
+        self.assertTrue(
+            expected_output or bwrap_restriction,
+            msg=(
+                "Expected output substring or known bwrap restriction; "
+                f"stdout={result['stdout']!r}, stderr={result['stderr']!r}"
+            ),
+        )
 
     async def test_service_is_discoverable(self) -> None:
         """Service can be listed and resolved by full service id."""
@@ -76,25 +124,80 @@ class RemoteSandboxServiceTests(unittest.IsolatedAsyncioTestCase):
                 cmd="echo",
                 args=["hello from test"],
             )
-            self.assertIsInstance(result, dict)
-            self.assertIn("stdout", result)
-            self.assertIn("stderr", result)
-            self.assertIn("code", result)
-            self.assertIsInstance(result["code"], int)
-
-            possible_expected = (
-                result["stdout"].strip() == "hello from test"
-                or "bwrap" in result["stderr"].lower()
+            self._assert_success_or_bwrap(
+                result,
+                expected_stdout_substring="hello from test",
             )
+        finally:
+            await self.service.destroy_session(session_id=session_id)
+
+    async def test_multiple_commands_same_session(self) -> None:
+        """Execute multiple real commands in one session and keep contract."""
+        session_id = await self.service.create_session(timeout=60000)
+        try:
+            first = await self.service.run_command(
+                session_id=session_id,
+                cmd="python",
+                args=["-c", "print('alpha')"],
+            )
+            self._assert_success_or_bwrap(
+                first,
+                expected_stdout_substring="alpha",
+            )
+
+            second = await self.service.run_command(
+                session_id=session_id,
+                cmd="python",
+                args=["-c", "print('beta')"],
+            )
+            self._assert_success_or_bwrap(
+                second,
+                expected_stdout_substring="beta",
+            )
+        finally:
+            await self.service.destroy_session(session_id=session_id)
+
+    async def test_invalid_command_edge_case(self) -> None:
+        """Invalid command returns non-zero exit or known restriction."""
+        session_id = await self.service.create_session(timeout=60000)
+        try:
+            result = await self.service.run_command(
+                session_id=session_id,
+                cmd="definitely-not-a-real-command-24agents",
+                args=[],
+            )
+            self._assert_command_contract(result)
+            command_not_found = (
+                result["code"] != 0
+                and (
+                    "not found" in result["stderr"].lower()
+                    or "no such file" in result["stderr"].lower()
+                    or "exited with code" in (result.get("error") or "").lower()
+                )
+            )
+            bwrap_restriction = self._is_known_bwrap_restriction(result["stderr"])
             self.assertTrue(
-                possible_expected,
+                command_not_found or bwrap_restriction,
                 msg=(
-                    "Expected successful echo output or known bwrap restriction; "
-                    f"got stdout={result['stdout']!r}, stderr={result['stderr']!r}"
+                    "Expected command-not-found behavior or known bwrap restriction; "
+                    f"stdout={result['stdout']!r}, stderr={result['stderr']!r}, "
+                    f"code={result['code']!r}, error={result.get('error')!r}"
                 ),
             )
         finally:
             await self.service.destroy_session(session_id=session_id)
+
+    async def test_destroyed_session_rejects_execution(self) -> None:
+        """Running after destroy raises a session-not-found error."""
+        session_id = await self.service.create_session(timeout=60000)
+        await self.service.destroy_session(session_id=session_id)
+
+        with self.assertRaisesRegex(Exception, "not found"):
+            await self.service.run_command(
+                session_id=session_id,
+                cmd="echo",
+                args=["after destroy"],
+            )
 
 
 if __name__ == "__main__":

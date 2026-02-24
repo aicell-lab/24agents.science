@@ -60,6 +60,9 @@ These tests validate:
 - Service discovery (`*:tool-sandbox`)
 - Health service registration format (`tool-sandbox-<pod>:health`)
 - Session lifecycle (`create_session`, `run_command`, `destroy_session`)
+- Multiple real command calls in one session
+- Edge case handling for invalid commands
+- Post-destroy session rejection behavior
 
 ## Known Runtime Constraint
 
