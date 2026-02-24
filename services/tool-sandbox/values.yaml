@@ -60,7 +60,7 @@ env:
   - name: HYPHA_SERVER_URL
     value: https://hypha.aicell.io
   - name: SERVICE_ID
-    value: tool-sandbox
+    value: tool-sandbox-service
   - name: IN_DOCKER
     value: "true"
   - name: HYPHA_TOKEN

@@ -14,12 +14,12 @@ const DEFAULT_TIMEOUT_MS = 3600000; // 1 hour
 const WORKSPACE_DIR = process.env.WORKSPACE_DIR || path.join(os.homedir(), 'workspace');
 const SESSIONS_ROOT = process.env.SESSIONS_ROOT || path.join(WORKSPACE_DIR, 'sessions');
 const SERVER_URL = process.env.HYPHA_SERVER_URL || "https://hypha.aicell.io";
-const SERVICE_ID = process.env.SERVICE_ID || "tool-sandbox";
+const SERVICE_ID = process.env.SERVICE_ID || "tool-sandbox-service";
 const WORKSPACE = process.env.HYPHA_WORKSPACE;
 const TOKEN = process.env.HYPHA_TOKEN;
 const IN_DOCKER = process.env.IN_DOCKER === 'true';
-const CLIENT_ID = process.env.CLIENT_ID || undefined; // If undefined, Hypha generates one
 const POD_NAME = process.env.POD_NAME;
+const CLIENT_ID = process.env.CLIENT_ID || undefined;
 
 
 // Ensure directories exist
@@ -396,12 +396,10 @@ async function registerHyphaService(client: any) {
                 }
             }
         )
-    });
-    
-    // Register health service on a pod-bound client ID when POD_NAME is available
+    }, { overwrite: true });
+
     if (POD_NAME) {
         try {
-            // We need a new connection dedicated to pod health reporting
             logger.info("Registering health check service on separate connection...");
             const healthClient = await hyphaWebsocketClient.connectToServer({
                 server_url: SERVER_URL,
@@ -409,14 +407,14 @@ async function registerHyphaService(client: any) {
                 workspace: WORKSPACE,
                 client_id: POD_NAME
             });
-            
+
             await healthClient.registerService({
                 id: "health",
                 name: "Health Check",
                 description: "Health check service for the pod",
                 config: { visibility: "public" },
                 ping: async () => "pong"
-            });
+            }, { overwrite: true });
             logger.info("Health check service registered.");
         } catch (e) {
             logger.error("Failed to register health service:", e);

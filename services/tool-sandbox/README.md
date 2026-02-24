@@ -33,6 +33,7 @@ Expected `.env` variables for the script:
 Notable environment behavior:
 - Main Hypha client ID is auto-generated unless `CLIENT_ID` is set.
 - Health service uses `POD_NAME` as `client_id`.
+- Default command service id is `tool-sandbox-service`.
 
 ## Build
 

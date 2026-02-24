@@ -16,7 +16,10 @@ class RemoteSandboxServiceTests(unittest.IsolatedAsyncioTestCase):
             "HYPHA_WORKSPACE",
             "ws-user-google-oauth2|104255278140940970953",
         )
-        service_id = os.environ.get("TOOL_SANDBOX_SERVICE_ID", "tool-sandbox")
+        service_id = os.environ.get(
+            "TOOL_SANDBOX_SERVICE_ID",
+            "tool-sandbox-service",
+        )
 
         self.server_url = server_url
         self.workspace = workspace

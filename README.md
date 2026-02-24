@@ -56,5 +56,5 @@ python3 -m unittest -v \
 Optional environment variables:
 - `HYPHA_SERVER_URL` (default: `https://hypha.aicell.io`)
 - `HYPHA_WORKSPACE`
-- `TOOL_SANDBOX_SERVICE_ID` (default: `tool-sandbox`)
+- `TOOL_SANDBOX_SERVICE_ID` (default: `tool-sandbox-service`)
 - `HYPHA_TOKEN` (required for private workspaces)
