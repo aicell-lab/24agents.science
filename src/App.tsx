@@ -23,6 +23,7 @@ import BioEngineWorker from './components/BioEngine/BioEngineWorker';
 import DatasetDashboard from './pages/DatasetDashboard';
 import AgentManager from './pages/AgentManager';
 import { KernelProvider } from './contexts/KernelContext';
+import Query from './components/Query';
 
 // Add a utility function to check if footer should be hidden
 const shouldHideFooter = (pathname: string): boolean => {
@@ -81,6 +82,7 @@ const AppContent: React.FC = () => {
           />
           <Route path="/tools" element={<ArtifactGrid type="tool" />} />
           <Route path="/agents" element={<ArtifactGrid type="agent" />} />
+          <Route path="/query" element={<Query serviceId='query-service' />} />
           <Route path="/datasets" element={<ArtifactGrid type="datasets" />} />
           <Route path="/datasets/:datasetId" element={<DatasetDashboard />} />
           <Route path="/upload" element={<Upload />} />

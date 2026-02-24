@@ -36,6 +36,7 @@ import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import TestReportBadge from './TestReportBadge';
 import TestReportDialog from './TestReportDialog';
 import ArtifactFiles from './ArtifactFiles';
+import { composeMcpService } from 'utils/mcpUtils';
 
 const ArtifactDetails = () => {
   const { id, version } = useParams<{ id: string; version?: string }>();
@@ -64,6 +65,7 @@ const ArtifactDetails = () => {
   const fullscreenContainerRef = useRef<HTMLDivElement>(null);
   const [isStaged, setIsStaged] = useState(false);
   const [canEdit, setCanEdit] = useState(false);
+  const [mcpUrl, setMcpUrl] = useState<string>("");
   const navigate = useNavigate();
 
   // Check if user has edit permissions (reviewer/admin) similar to ArtifactCard
@@ -96,6 +98,21 @@ const ArtifactDetails = () => {
 
     checkEditPermissions();
   }, [isLoggedIn, user, artifactManager]);
+
+  useEffect(() => {
+    const getMcpUrl = async () => {
+      if (!selectedResource) return;
+      
+      if (selectedResource.manifest.type === 'dataset') {
+        setMcpUrl(`https://hypha.aicell.io/24agents-science/artifacts/${selectedResource.id.split('/').pop()}`);
+      } else {
+        const url = await composeMcpService([selectedResource.id]);
+        setMcpUrl(url);
+      }
+    };
+    
+    getMcpUrl();
+  }, [selectedResource]);
 
   useEffect(() => {
     if (id) {
@@ -447,7 +464,7 @@ const ArtifactDetails = () => {
           />
           <CopyableInline 
             label="MCP" 
-            value={"https://hypha.aicell.io/hypha-agents/mcp/biomni/mcp"} 
+            value={mcpUrl}
             copyTitle="Copy MCP URL" 
           />
         </Typography>

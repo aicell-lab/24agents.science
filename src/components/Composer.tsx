@@ -6,7 +6,7 @@ import { Card, CardContent, IconButton, Button, Snackbar, Alert, CircularProgres
 import DeleteIcon from '@mui/icons-material/Delete';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
-import { hyphaWebsocketClient } from 'hypha-rpc';
+import { composeMcpService } from '../utils/mcpUtils';
 
 interface ArtifactServiceInfo {
   artifact: ArtifactInfo;
@@ -78,139 +78,15 @@ const Composer: React.FC = () => {
       setSnackbarMessage('Connecting to Hypha server...');
       setSnackbarOpen(true);
 
-      // Connect to Hypha server
-      const server = await hyphaWebsocketClient.connectToServer({
-        server_url: 'https://hypha.aicell.io',
-        client_id: 'composer-client-' + Math.random().toString(36).substring(7),
-      });
+      const mcpUrl = await composeMcpService(selectedArtifacts);
 
-      setSnackbarMessage('Fetching services for selected artifacts...');
-
-      // Collect all service functions with their schemas
-      const serviceFunctions: any = {};
-      const serviceInfos: ArtifactServiceInfo[] = [];
-      const functionNameCounts: Record<string, number> = {};
-      const skippedArtifacts: string[] = [];
-
-      for (const artifact of artifacts) {
-        // Check if this is a tool/function artifact
-        const artifactType = artifact.manifest.type || artifact.type;
-
-        // Skip non-tool artifacts (datasets, models, etc.)
-        if (artifactType === 'dataset' || artifactType === 'model' || artifactType === 'collection') {
-          console.warn(`⊘ Skipping ${artifact.id} - type "${artifactType}" is not supported for MCP composition`);
-          skippedArtifacts.push(`${artifact.manifest.name} (type: ${artifactType})`);
-          continue;
-        }
-
-        // Get service ID and function name from artifact manifest
-        const serviceId = artifact.manifest.source
-          ? `hypha-agents/${artifact.manifest.source}`
-          : 'hypha-agents/biomni'; // fallback for backward compatibility
-
-        // Use the function_name from manifest, or fall back to artifact ID
-        let baseFunctionName = artifact.manifest.function_name
-          || artifact.id.split('/').pop()
-          || artifact.id;
-
-        // Handle function name collisions by appending a counter
-        let functionName = baseFunctionName;
-        if (functionNameCounts[baseFunctionName]) {
-          functionNameCounts[baseFunctionName]++;
-          functionName = `${baseFunctionName}_${functionNameCounts[baseFunctionName]}`;
-        } else {
-          functionNameCounts[baseFunctionName] = 1;
-        }
-
-        try {
-          // Get the service
-          console.log(`[${artifact.id}] Getting service: ${serviceId}, function: ${baseFunctionName} -> registering as: ${functionName}`);
-          const service = await server.getService(serviceId);
-
-          // Get function from service using the function name from manifest
-          const func = service[baseFunctionName];
-
-          if (func) {
-            // Get the schema
-            const schema = func.__schema__;
-
-            // Store the function with schema for proxying (using possibly renamed function name)
-            serviceFunctions[functionName] = Object.assign(
-              async (...args: any[]) => {
-                // Proxy call to original function
-                return await func(...args);
-              },
-              { __schema__: schema }
-            );
-
-            serviceInfos.push({
-              artifact,
-              serverUrl: 'https://hypha.aicell.io',
-              serviceId,
-              functionId: functionName
-            });
-
-            console.log(`✓ Added function ${functionName} from service ${serviceId}`);
-          } else {
-            console.error(`✗ Function ${baseFunctionName} not found in service ${serviceId}`);
-            console.log('Available functions in service:', Object.keys(service).filter(k => typeof service[k] === 'function'));
-            skippedArtifacts.push(`${artifact.manifest.name} (function not found)`);
-          }
-        } catch (error) {
-          console.error(`✗ Failed to get service for artifact ${artifact.id}:`, error);
-          skippedArtifacts.push(`${artifact.manifest.name} (error: ${error})`);
-        }
-      }
-
-      console.log(`\nTotal functions collected: ${Object.keys(serviceFunctions).length}`);
-      console.log('Function names:', Object.keys(serviceFunctions));
-
-      if (skippedArtifacts.length > 0) {
-        console.warn(`\nSkipped ${skippedArtifacts.length} artifact(s):`, skippedArtifacts);
-      }
-
-      if (Object.keys(serviceFunctions).length === 0) {
-        throw new Error('No valid tool artifacts found. Only "tool" type artifacts can be composed into MCP services. Datasets, models, and collections are not supported.');
-      }
-
-      // Show warning if some artifacts were skipped
-      if (skippedArtifacts.length > 0) {
-        const warningMsg = `Note: ${skippedArtifacts.length} artifact(s) were skipped: ${skippedArtifacts.join(', ')}. Only "tool" type artifacts can be composed.`;
-        console.warn(warningMsg);
-        setSnackbarMessage(warningMsg);
-        setSnackbarOpen(true);
-        // Wait a bit before continuing
-        await new Promise(resolve => setTimeout(resolve, 2000));
-      }
-
-      setSnackbarMessage('Registering composed service...');
-
-      // Generate unique service ID for composed service
-      const composedServiceId = 'composed-' + Date.now();
-
-      // Register the composed service
-      await server.registerService({
-        type: 'composed-mcp-service',
-        id: composedServiceId,
-        name: 'Composed MCP Service',
-        description: `Composed service with ${Object.keys(serviceFunctions).length} functions from ${artifacts.length} artifacts`,
-        config: {
-          visibility: 'public',
-          require_context: true
-        },
-        ...serviceFunctions
-      });
-
-      // Build the service URL and convert to MCP URL
-      const serverUrl = server.config.server_url || 'https://hypha.aicell.io';
-      const builtServiceUrl = `${serverUrl}/${server.config.workspace}/services/${composedServiceId}`;
-      const mcpUrl = builtServiceUrl.replace('/services/', '/mcp/') + '/mcp';
-
+      const serviceUrl = mcpUrl.replace('/mcp/', '/services/').replace('/mcp', '');
+      
       console.log('✓ Composed service registered!');
-      console.log('Service URL:', builtServiceUrl);
+      console.log('Service URL:', serviceUrl);
       console.log('MCP URL:', mcpUrl);
 
-      setServiceUrl(builtServiceUrl);
+      setServiceUrl(serviceUrl);
       setComposedUrl(mcpUrl);
       setSnackbarMessage('Composed service created successfully!');
       setSnackbarOpen(true);
