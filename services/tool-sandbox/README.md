@@ -35,6 +35,39 @@ Notable environment behavior:
 - Health service uses `POD_NAME` as `client_id`.
 - Default command service id is `tool-sandbox-service`.
 
+## Helm Upgrade / Redeploy
+
+Use Helm values files to keep the deployment configuration in sync.
+
+### Production (`hypha`)
+
+```bash
+helm upgrade --install tool-sandbox <chart-path> \
+	--namespace hypha \
+	--values services/tool-sandbox/values.yaml
+```
+
+### Development (`hypha-dev`)
+
+```bash
+helm upgrade --install tool-sandbox <chart-path> \
+	--namespace hypha-dev \
+	--values services/tool-sandbox/values.yaml \
+	--values services/tool-sandbox/values-dev.yaml
+```
+
+If your deployment mounts `dist` from the `tool-sandbox-code` ConfigMap,
+rebuild and refresh it before restarting the deployment:
+
+```bash
+cd services/tool-sandbox
+npm run build
+kubectl -n hypha create configmap tool-sandbox-code \
+	--from-file=dist --dry-run=client -o yaml | kubectl apply -f -
+kubectl -n hypha rollout restart deployment/tool-sandbox
+kubectl -n hypha rollout status deployment/tool-sandbox
+```
+
 ## Build
 
 ```bash
@@ -58,7 +91,7 @@ python3 -m unittest -v services/tool-sandbox/python-client/test_remote_sandbox_s
 ```
 
 These tests validate:
-- Service discovery (`*:tool-sandbox`)
+- Service discovery (`*:tool-sandbox-service`)
 - Health service registration format (`tool-sandbox-<pod>:health`)
 - Session lifecycle (`create_session`, `run_command`, `destroy_session`)
 - Multiple real command calls in one session
