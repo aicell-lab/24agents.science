@@ -20,11 +20,56 @@ jest.mock('hypha-rpc', () => ({
 describe('Query Service Integration', () => {
     let mockServer: any;
     let registeredService: any;
+    let composedRegisterService: jest.Mock;
+    let fetchMock: jest.SpyInstance;
 
     beforeEach(() => {
         jest.clearAllMocks();
 
-        // Setup a "Real-ish" server mock that just accepts registration
+        fetchMock = jest.spyOn(global, 'fetch').mockImplementation(async (input: RequestInfo | URL) => {
+            const url = String(input);
+
+            if (url.includes('/children?')) {
+                return {
+                    ok: true,
+                    json: async () => ([
+                        {
+                            id: '24agents-science/query_geo',
+                            manifest: {
+                                name: 'query_geo',
+                                description: 'Query GEO datasets'
+                            }
+                        },
+                        {
+                            id: '24agents-science/query_ensembl',
+                            manifest: {
+                                name: 'query_ensembl',
+                                description: 'Query Ensembl'
+                            }
+                        }
+                    ])
+                } as Response;
+            }
+
+            if (url.endsWith('/24agents-science/artifacts/query_geo')) {
+                return {
+                    ok: true,
+                    json: async () => ({
+                        id: '24agents-science/query_geo',
+                        manifest: {
+                            source: 'biomni',
+                            function_name: 'query_geo'
+                        }
+                    })
+                } as Response;
+            }
+
+            return {
+                ok: false,
+                json: async () => ({})
+            } as Response;
+        });
+
         mockServer = {
             config: {
                 workspace: 'test-user',
@@ -43,23 +88,27 @@ describe('Query Service Integration', () => {
             isConnected: true
         });
 
-        // Mock the composed client that composeMcp creates
-        // This ensures composeMcp can proceed through the "connect" phase
+        composedRegisterService = jest.fn().mockResolvedValue(undefined);
+
         (hyphaWebsocketClient.connectToServer as jest.Mock).mockResolvedValue({
             config: {
                 workspace: 'composed-workspace',
                 server_url: 'https://hypha.aicell.io'
             },
-            // This is called inside processArtifact to bind functions
             getService: jest.fn().mockResolvedValue({
-                 // Mock a generic function that might exist on the tool
-                 // We can't call the REAL remote tool via websocket in this test env seamlessly
-                 // checking for __schema__ property access
-                 test_function: Object.assign(async () => "result", { __schema__: {} }),
-                 __schema__: {}
+                query_geo: Object.assign(async () => ({ success: true }), {
+                    __schema__: {
+                        name: 'query_geo',
+                        description: 'Query GEO'
+                    }
+                })
             }),
-            registerService: jest.fn()
+            registerService: composedRegisterService
         });
+    });
+
+    afterEach(() => {
+        fetchMock.mockRestore();
     });
 
     const getService = (id: string) => {
@@ -73,11 +122,7 @@ describe('Query Service Integration', () => {
         throw new Error(`Service ${id} not found. Registered: ${registeredService?.id}`);
     };
 
-    /**
-     * Test Case 1: Search Items
-     * Runs against the REAL 24agents.science public index via HTTP fetch.
-     */
-    test('searchItems returns sensible real results', async () => {
+    test('search_items returns tool list with expected shape', async () => {
         render(<Query serviceId="query-service" />);
         
         await waitFor(() => {
@@ -86,56 +131,29 @@ describe('Query Service Integration', () => {
 
         const service = getService("query-service");
         
-        // Execute REAL searchItems
-        // This hits https://hypha.aicell.io/24agents-science/artifacts/24agents.science/children...
-        console.log("Running searchItems('agent')...");
-        const items = await service.searchItems("agent");
-
-        console.log(`Found ${items.length} items for query "agent"`);
+        const items = await service.search_items({ query: 'agent' });
         
         expect(Array.isArray(items)).toBeTruthy();
         expect(items.length).toBeGreaterThan(0);
-        
-        // Check for sensible fields
+
         const firstItem = items[0];
         expect(firstItem).toHaveProperty('id');
-        expect(firstItem).toHaveProperty('created_at');
-        // Manifest should exist
-        expect(firstItem.manifest).toBeDefined();
+        expect(firstItem).toHaveProperty('name');
+        expect(firstItem).toHaveProperty('description');
     });
 
-    /**
-     * Test Case 2: Compose MCP
-     * Validates that composeMcp can fetch a real artifact manifest and setup the composed service.
-     */
-    test('composeMcp processes specific artifacts', async () => {
+    test('compose_mcp composes selected tool into MCP URL', async () => {
         render(<Query serviceId="query-service" />);
         await waitFor(() => expect(mockServer.registerService).toHaveBeenCalled());
         const service = getService("query-service");
 
-        // 1. Find a real tool to use
-        // We look for 'chat' related tools which are likely to exist
-        const items = await service.searchItems("chat");
-        if (items.length === 0) {
-            console.warn("Skipping composeMcp test: No tools found for 'chat'");
-            return;
-        }
-        
-        // Pick one valid artifact ID
-        const toolId = items[0].id;
-        console.log(`Testing composeMcp with tool: ${toolId}`);
+        const mcpUrl = await service.compose_mcp({
+            toolIds: ['24agents-science/query_geo']
+        });
 
-        // 2. Run composeMcp
-        // This will:
-        // - Fetch the artifact via HTTP (Real)
-        // - Connect to "server" (Mocked WS client)
-        // - Get the remote service (Mocked WS call)
-        // - Register the composed service (Mocked WS call)
-        const mcpUrl = await service.composeMcp([toolId]);
-
-        console.log("Generated MCP URL:", mcpUrl);
-
-        expect(mcpUrl).toContain('/mcp/mcp');
+        expect(mcpUrl).toContain('/mcp/');
+        expect(mcpUrl.endsWith('/mcp')).toBeTruthy();
         expect(mcpUrl).toContain('https://hypha.aicell.io');
+        expect(composedRegisterService).toHaveBeenCalled();
     });
 });
