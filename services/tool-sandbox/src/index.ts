@@ -1,6 +1,5 @@
 import './polyfills'; // MUST BE FIRST
 import { SandboxManager, SandboxRuntimeConfig } from '@anthropic-ai/sandbox-runtime';
-import WebSocket from 'ws';
 
 import { hyphaWebsocketClient } from 'hypha-rpc';
 import * as fs from 'node:fs';
@@ -20,6 +19,7 @@ const WORKSPACE = process.env.HYPHA_WORKSPACE;
 const TOKEN = process.env.HYPHA_TOKEN;
 const IN_DOCKER = process.env.IN_DOCKER === 'true';
 const CLIENT_ID = process.env.CLIENT_ID || undefined; // If undefined, Hypha generates one
+const POD_NAME = process.env.POD_NAME;
 
 
 // Ensure directories exist
@@ -197,8 +197,21 @@ async function registerHyphaService(client: any) {
         },
 
         create_session: Object.assign(
-            async (timeout: number = DEFAULT_TIMEOUT_MS, context: any = {}) => {
-                const userId = context?.user?.id || context?.user?.email;
+            async (timeout_or_kwargs: any, context?: any) => {
+                let timeout = DEFAULT_TIMEOUT_MS;
+                let ctx = context;
+                
+                if (timeout_or_kwargs && typeof timeout_or_kwargs === 'object' && !Array.isArray(timeout_or_kwargs)) {
+                     // It's kwargs or context
+                     if (timeout_or_kwargs.timeout !== undefined) {
+                         timeout = timeout_or_kwargs.timeout;
+                     }
+                     if (!ctx) ctx = timeout_or_kwargs;
+                } else if (typeof timeout_or_kwargs === 'number') {
+                     timeout = timeout_or_kwargs;
+                }
+                
+                const userId = ctx?.user?.id || ctx?.user?.email;
                 const session = startSession(timeout, userId);
                 return session.id;
             },
@@ -217,12 +230,39 @@ async function registerHyphaService(client: any) {
         ),
 
         run_command: Object.assign(
-            async (session_id: string | undefined | null, cmd: string, args: string[] = [], cwd?: string, context?: any) => {
-                let targetSessionId = session_id;
+            async (session_id_or_kwargs: any, cmd?: string, args: string[] = [], cwd?: string, context?: any) => {
+                let targetSessionId: string | undefined | null;
+                let commandStr: string | undefined;
+                let commandArgs: string[] = [];
+                let workingDir: string | undefined;
+                let ctx = context;
+
+                // Handle Hypha's keyword arguments (passed as a single object)
+                if (session_id_or_kwargs && typeof session_id_or_kwargs === 'object' && !Array.isArray(session_id_or_kwargs)) {
+                     // Kwargs mode
+                     targetSessionId = session_id_or_kwargs.session_id;
+                     commandStr = session_id_or_kwargs.cmd;
+                     commandArgs = session_id_or_kwargs.args || [];
+                     workingDir = session_id_or_kwargs.cwd;
+                     // Context might be injected as last arg or present in kwargs? Usually last arg.
+                     // If context is undefined, try to use the last arg from the outer function
+                     if (!ctx && cmd && typeof cmd === 'object' && !commandStr) {
+                         // cmd might be context if only 1 arg was passed
+                         ctx = cmd;
+                     }
+                } else {
+                    // Positional mode
+                    targetSessionId = session_id_or_kwargs;
+                    commandStr = cmd;
+                    commandArgs = args;
+                    workingDir = cwd;
+                }
                 
+                if (!commandStr) throw new Error("Command (cmd) is required");
+
                 // If session_id is not provided, try to find an existing session for the user
                 if (!targetSessionId) {
-                    const userId = context?.user?.id || context?.user?.email;
+                    const userId = ctx?.user?.id || ctx?.user?.email;
                     if (userId) {
                         const existingSession = findSessionByUser(userId);
                         if (existingSession) {
@@ -241,7 +281,7 @@ async function registerHyphaService(client: any) {
                      throw new Error("Failed to determine session ID.");
                 }
 
-                return executeSessionCommand(getSession(targetSessionId), cmd, args, cwd);
+                return executeSessionCommand(getSession(targetSessionId), commandStr, commandArgs, workingDir);
             },
             {
                 __schema__: {
@@ -262,10 +302,23 @@ async function registerHyphaService(client: any) {
         ),
 
         install_pip: Object.assign(
-            async (session_id: string, pkg: string, context: any = {}) => {
+            async (session_id_or_kwargs: any, pkg?: string, context?: any) => {
+                let session_id: string | undefined;
+                let package_name: string | undefined;
+                
+                if (session_id_or_kwargs && typeof session_id_or_kwargs === 'object') {
+                    session_id = session_id_or_kwargs.session_id;
+                    package_name = session_id_or_kwargs.pkg;
+                } else {
+                    session_id = session_id_or_kwargs;
+                    package_name = pkg;
+                }
+                
+                if (!session_id || !package_name) throw new Error("session_id and pkg are required");
+
                 const session = getSession(session_id);
                 return executeSessionCommand(
-                    session, 'pip', ['install', pkg, '--target', session.pylibDir]
+                    session, 'pip', ['install', package_name, '--target', session.pylibDir]
                 );
             },
             {
@@ -285,8 +338,21 @@ async function registerHyphaService(client: any) {
         ),
 
         install_npm: Object.assign(
-            async (session_id: string, pkg: string, context: any = {}) => {
-                return executeSessionCommand(getSession(session_id), 'npm', ['install', pkg]);
+            async (session_id_or_kwargs: any, pkg?: string, context?: any) => {
+                let session_id: string | undefined;
+                let package_name: string | undefined;
+                
+                if (session_id_or_kwargs && typeof session_id_or_kwargs === 'object') {
+                     session_id = session_id_or_kwargs.session_id;
+                     package_name = session_id_or_kwargs.pkg;
+                } else {
+                     session_id = session_id_or_kwargs;
+                     package_name = pkg;
+                }
+
+                if (!session_id || !package_name) throw new Error("session_id and pkg are required");
+
+                return executeSessionCommand(getSession(session_id), 'npm', ['install', package_name]);
             },
             {
                 __schema__: {
@@ -305,7 +371,15 @@ async function registerHyphaService(client: any) {
         ),
 
         destroy_session: Object.assign(
-            async (session_id: string, context: any = {}) => {
+            async (session_id_or_kwargs: any, context?: any) => {
+                let session_id: string | undefined;
+                if (session_id_or_kwargs && typeof session_id_or_kwargs === 'object') {
+                    session_id = session_id_or_kwargs.session_id;
+                } else {
+                    session_id = session_id_or_kwargs;
+                }
+                
+                if (!session_id) throw new Error("session_id is required");
                 return destroySession(session_id);
             },
             {
@@ -324,16 +398,16 @@ async function registerHyphaService(client: any) {
         )
     });
     
-    // Register separate health service with dynamic client ID if we are using a fixed one
-    if (CLIENT_ID) {
+    // Register health service on a pod-bound client ID when POD_NAME is available
+    if (POD_NAME) {
         try {
-            // We need a new connection for the dynamic client ID
+            // We need a new connection dedicated to pod health reporting
             logger.info("Registering health check service on separate connection...");
             const healthClient = await hyphaWebsocketClient.connectToServer({
                 server_url: SERVER_URL,
                 token: TOKEN,
-                workspace: WORKSPACE
-                // No client_id, so it's random
+                workspace: WORKSPACE,
+                client_id: POD_NAME
             });
             
             await healthClient.registerService({
@@ -352,6 +426,9 @@ async function registerHyphaService(client: any) {
     logger.info(`Service ready: ${SERVICE_ID}`);
 }
 
+
+let globalClient: any;
+
 async function main() {
     try {
         await initializeGlobalSandbox();
@@ -364,9 +441,9 @@ async function main() {
         };
         logger.info(`Connecting to Hypha at ${SERVER_URL} workspace=${WORKSPACE} client_id=${CLIENT_ID || 'auto'}`);
 
-        const client = await hyphaWebsocketClient.connectToServer(config);
+        globalClient = await hyphaWebsocketClient.connectToServer(config);
 
-        await registerHyphaService(client);
+        await registerHyphaService(globalClient);
     } catch (error) {
         logger.error("Service initialization failed:", error);
         process.exit(1);

@@ -1,0 +1,19 @@
+image:
+  tag: "sha-dev"
+
+env:
+  - name: HYPHA_SERVER_URL
+    value: https://hypha.aicell.io
+  - name: SERVICE_ID
+    value: tool-sandbox
+  - name: IN_DOCKER
+    value: "true"
+  - name: HYPHA_TOKEN
+    valueFrom:
+      secretKeyRef:
+        name: tool-sandbox-secrets
+        key: HYPHA_TOKEN
+  - name: POD_NAME
+    valueFrom:
+      fieldRef:
+        fieldPath: metadata.name

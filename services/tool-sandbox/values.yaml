@@ -1,0 +1,78 @@
+replicaCount: 1
+
+image:
+  repository: ghcr.io/aicell-lab/tool-sandbox
+  pullPolicy: Always
+  tag: "tool-query-service"
+
+imagePullSecrets:
+  - name: ghcr-secret
+
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  automount: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext:
+  fsGroup: 2000
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+
+resources:
+  limits:
+    cpu: "1"
+    memory: 2Gi
+  requests:
+    cpu: 200m
+    memory: 512Mi
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 80
+
+volumes:
+  - name: workspace-volume
+    emptyDir: {}
+
+volumeMounts:
+  - name: workspace-volume
+    mountPath: /app/workspace
+
+env:
+  - name: HYPHA_SERVER_URL
+    value: https://hypha.aicell.io
+  - name: SERVICE_ID
+    value: tool-sandbox
+  - name: IN_DOCKER
+    value: "true"
+  - name: HYPHA_TOKEN
+    valueFrom:
+      secretKeyRef:
+        name: tool-sandbox-secrets
+        key: HYPHA_TOKEN
+  - name: POD_NAME
+    valueFrom:
+      fieldRef:
+        fieldPath: metadata.name
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
