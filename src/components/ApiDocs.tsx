@@ -18,9 +18,13 @@ const ApiDocs: React.FC = () => {
   // Add URL query parameter handling
   useEffect(() => {
     setSearchParams(params => {
-      params.set('tab', activeMainTab);
+      // Only update if the tab is different to avoid potential loops
+      if (params.get('tab') !== activeMainTab) {
+        params.set('tab', activeMainTab);
+        return params;
+      }
       return params;
-    });
+    }, { replace: true }); // Use replace to avoid polluting history
   }, [activeMainTab, setSearchParams]);
 
   const generateToken = async () => {

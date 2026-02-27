@@ -4,7 +4,7 @@ import { useHyphaStore } from '../store/hyphaStore';
 import SearchBar from './SearchBar';
 import ArtifactCard from './ArtifactCard';
 import PartnerScroll from './PartnerScroll';
-import { Grid } from '@mui/material';
+import { Grid2 } from '@mui/material';
 import TagSelection from './TagSelection';
 
 interface ResourceGridProps {
@@ -288,7 +288,7 @@ export const ArtifactGrid: React.FC<ResourceGridProps> = ({ type }) => {
         <div className="text-center px-2 sm:px-0">
          
            <p className="text-base sm:text-lg md:text-xl font-medium mb-2 bg-gradient-to-r from-blue-600 via-purple-600 to-cyan-600 bg-clip-text text-transparent">
-             24Agents.Science -- Discover, Explore and Deploy Tools for Agents in Science
+             Discover, Explore and Deploy Tools for Agents in Science
            </p>
 
         </div>
@@ -309,12 +309,12 @@ export const ArtifactGrid: React.FC<ResourceGridProps> = ({ type }) => {
                   onSearchConfirm={handleSearchConfirm}
                 />
               </div>
-              <div className="flex-none self-center sm:self-auto">
+              {/* <div className="flex-none self-center sm:self-auto">
                 <TagSelection 
                   onTagSelect={handleTagSelect}
                   selectedTags={selectedTags}
                 />
-              </div>
+              </div> */}
             </div>
           </div>
         </div>
@@ -341,10 +341,10 @@ export const ArtifactGrid: React.FC<ResourceGridProps> = ({ type }) => {
                 </div>
                 <button
                   onClick={handleMountDataset}
-                  className="w-full sm:w-auto sm:ml-2.5 px-6 py-3 bg-gradient-to-r from-green-600 to-blue-600 text-white font-semibold rounded-xl hover:from-green-700 hover:to-blue-700 shadow-md hover:shadow-lg transition-all duration-200 transform hover:scale-105 flex items-center justify-center"
+                  className="w-full sm:w-auto sm:ml-2.5 px-6 py-3 bg-gradient-to-r from-green-600 to-blue-600 text-white font-semibold rounded-xl hover:from-green-700 hover:to-blue-700 shadow-md hover:shadow-lg transition-all duration-200 transform hover:scale-105 flex items-center justify-center text-lg"
                 >
-                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  <svg className="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
                   <span>Mount Dataset</span>
                 </button>
@@ -375,10 +375,10 @@ export const ArtifactGrid: React.FC<ResourceGridProps> = ({ type }) => {
                 </div>
                 <button
                   onClick={() => navigate('/agent-manager')}
-                  className="w-full sm:w-auto sm:ml-2.5 px-6 py-3 bg-gradient-to-r from-indigo-600 to-cyan-600 text-white font-semibold rounded-xl hover:from-indigo-700 hover:to-cyan-700 shadow-md hover:shadow-lg transition-all duration-200 transform hover:scale-105 flex items-center justify-center"
+                  className="w-full sm:w-auto sm:ml-2.5 px-6 py-3 bg-gradient-to-r from-indigo-600 to-cyan-600 text-white font-semibold rounded-xl hover:from-indigo-700 hover:to-cyan-700 shadow-md hover:shadow-lg transition-all duration-200 transform hover:scale-105 flex items-center justify-center text-lg"
                 >
-                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  <svg className="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
                   </svg>
                   <span>Create Agent</span>
                 </button>
@@ -420,15 +420,11 @@ export const ArtifactGrid: React.FC<ResourceGridProps> = ({ type }) => {
         )}
 
 
-        <Grid container spacing={2} sx={{ padding: { xs: 0.5, sm: 1, md: 2 } }}>
+        <Grid2 container spacing={2} sx={{ padding: { xs: 0.5, sm: 1, md: 2 } }}>
           {resources.map((artifact) => (
-            <Grid 
-              item 
-              key={artifact.id} 
-              xs={12}
-              sm={6} 
-              md={4} 
-              lg={3} 
+            <Grid2
+              size={{ xs: 12, sm: 6, md: 4, lg: 3 }}
+              key={artifact.id}
               sx={{
                 minWidth: { xs: 'auto', sm: 280 },
                 maxWidth: { xs: '100%', sm: 320 },
@@ -436,9 +432,9 @@ export const ArtifactGrid: React.FC<ResourceGridProps> = ({ type }) => {
               }}
             >
               <ArtifactCard artifact={artifact} />
-            </Grid>
+            </Grid2>
           ))}
-        </Grid>
+        </Grid2>
         
         {totalPages > 1 && (
           <Pagination

@@ -5,6 +5,7 @@ import { Card, CardMedia, CardContent, IconButton, Button } from '@mui/material'
 import DownloadIcon from '@mui/icons-material/Download';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import VisibilityIcon from '@mui/icons-material/Visibility';
+import CheckIcon from '@mui/icons-material/Check';
 import EditIcon from '@mui/icons-material/Edit';
 import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
@@ -92,7 +93,14 @@ export const ArtifactCard: React.FC<ResourceCardProps> = ({ artifact }) => {
   // Copy handlers for buttons
   const copyMcp = (e: React.MouseEvent) => {
     e.stopPropagation();
-    const mcpUrl = 'https://hypha.aicell.io/hypha-agents/mcp/biomni/mcp';
+    
+    // Default to the correct service URL format for tools/agents
+    let mcpUrl = `https://hypha.aicell.io/hypha-agents/services/${artifact.id.split('/').pop()}`;
+    
+    if (artifact.manifest.type === 'dataset') {
+      mcpUrl = `https://hypha.aicell.io/24agents-science/artifacts/${artifact.id.split('/').pop()}`;
+    }
+
     navigator.clipboard.writeText(mcpUrl)
       .then(() => {
         setMcpCopied(true);
@@ -140,19 +148,17 @@ export const ArtifactCard: React.FC<ResourceCardProps> = ({ artifact }) => {
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
-        backgroundColor: 'rgba(255, 255, 255, 0.8)',
-        backdropFilter: 'blur(8px)',
-        border: '1px solid rgba(229, 231, 235, 0.8)',
-        borderRadius: '16px',
-        boxShadow: '0 4px 6px rgba(0, 0, 0, 0.05)',
+        backgroundColor: '#ffffff',
+        border: '1px solid #e5e7eb',
+        borderRadius: '12px',
+        boxShadow: '0 2px 4px rgba(0,0,0,0.02)',
         cursor: 'pointer',
         position: 'relative',
-        transition: 'all 0.3s ease',
+        transition: 'all 0.2s ease-in-out',
         '&:hover': {
-          backgroundColor: 'rgba(255, 255, 255, 0.9)',
-          borderColor: 'rgba(59, 130, 246, 0.3)',
-          boxShadow: '0 8px 25px rgba(0, 0, 0, 0.1)',
-          transform: 'translateY(-4px)',
+          borderColor: '#3b82f6',
+          boxShadow: '0 4px 12px rgba(59, 130, 246, 0.15)',
+          transform: 'translateY(-2px)',
           '& .preview-button': {
             opacity: 1,
           },
@@ -342,44 +348,28 @@ export const ArtifactCard: React.FC<ResourceCardProps> = ({ artifact }) => {
               <code className="font-mono bg-gray-100/80 text-gray-800 px-2 py-1 rounded-md border border-gray-200/60 text-xs inline-block break-all break-words whitespace-normal max-w-full min-w-0">
                 {artifact.id.split('/').pop()}
               </code>
-            </div>
-            <div className="flex items-center gap-1">
               <Button 
                 onClick={copyMcp}
                 size="small"
                 variant="outlined"
-                startIcon={<ContentCopyIcon sx={{ fontSize: 14 }} />}
+                startIcon={mcpCopied ? <CheckIcon sx={{ fontSize: 14 }} /> : <ContentCopyIcon sx={{ fontSize: 14 }} />}
                 sx={{
                   borderRadius: '8px',
                   textTransform: 'none',
                   paddingY: '2px',
                   paddingX: '8px',
+                  minWidth: 'auto',
+                  borderColor: mcpCopied ? 'rgba(34, 197, 94, 0.5)' : undefined,
+                  color: mcpCopied ? 'rgb(22, 163, 74)' : undefined,
+                  backgroundColor: mcpCopied ? 'rgba(34, 197, 94, 0.05)' : undefined,
+                  '&:hover': {
+                    backgroundColor: mcpCopied ? 'rgba(34, 197, 94, 0.1)' : undefined,
+                    borderColor: mcpCopied ? 'rgba(34, 197, 94, 0.8)' : undefined,
+                  }
                 }}
               >
-                Copy MCP
+                {mcpCopied ? 'Copied' : 'Copy MCP'}
               </Button>
-              {mcpCopied && (
-                <span className="text-green-600 ml-1 font-medium">Copied!</span>
-              )}
-            </div>
-          </div>
-        </div>
-        
-        <p className="text-sm text-gray-600 my-4 line-clamp-2">
-          {artifact.manifest.description}
-        </p>
-
-        <div className="space-y-2">
-          <div className="flex flex-wrap gap-1.5">
-            {artifact.manifest.tags?.slice(0, 3).map((tag: string) => (
-              <span
-                key={tag}
-                className="px-2.5 py-1 bg-gray-50/80 text-gray-500 text-xs rounded-full border border-gray-100/60 transition-all duration-300 hover:bg-gray-100/80 hover:text-gray-600"
-              >
-                {tag}
-              </span>
-            ))}
-          </div>
           <div className="flex flex-wrap gap-1.5">
             {artifact.manifest.badges?.map((badge) => (
               <a
