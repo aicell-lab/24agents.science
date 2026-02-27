@@ -98,12 +98,7 @@ const ArtifactDetails = () => {
   }, [isLoggedIn, user, artifactManager]);
 
   useEffect(() => {
-    if (id) {
-      fetchResource(`24agents-science/${id}`, version);
-    }
-  }, [id, fetchResource, version]);
-
-  useEffect(() => {
+    // Only fetch documentation here, not MCP URL logic which is handled in render
     const fetchDocumentation = async () => {
       if (selectedResource?.manifest.documentation) {
         try {

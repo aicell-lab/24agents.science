@@ -3,6 +3,7 @@ import { PencilIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { formatDistanceToNow } from 'date-fns';
 import StatusBadge from './StatusBadge';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import CheckIcon from '@mui/icons-material/Check';
 import { CircularProgress, Button } from '@mui/material';
 
 interface Author {
@@ -56,7 +57,13 @@ const MyArtifactCard: React.FC<AdminResourceCardProps> = ({
   const [mcpCopied, setMcpCopied] = useState(false);
   const copyMcp = (e: React.MouseEvent) => {
     e.stopPropagation();
-    const mcpUrl = 'https://hypha.aicell.io/hypha-agents/mcp/biomni/mcp';
+    // Default to the correct service URL format for tools/agents
+    let mcpUrl = `https://hypha.aicell.io/hypha-agents/services/${id.split('/').pop()}`;
+    
+    if (artifactType === 'dataset') {
+      mcpUrl = `https://hypha.aicell.io/24agents-science/artifacts/${id.split('/').pop()}`;
+    }
+
     navigator.clipboard.writeText(mcpUrl)
       .then(() => {
         setMcpCopied(true);
@@ -116,19 +123,21 @@ const MyArtifactCard: React.FC<AdminResourceCardProps> = ({
                 onClick={copyMcp}
                 size="small"
                 variant="outlined"
-                startIcon={<ContentCopyIcon sx={{ fontSize: 14 }} />}
+                startIcon={mcpCopied ? <CheckIcon sx={{ fontSize: 14 }} /> : <ContentCopyIcon sx={{ fontSize: 14 }} />}
                 sx={{
                   borderRadius: '8px',
                   textTransform: 'none',
                   py: 0.25,
                   px: 1,
+                  minWidth: 0,
+                  '.MuiButton-startIcon': {
+                    marginRight: '4px',
+                    marginLeft: 0
+                  }
                 }}
               >
-                Copy MCP
+                {mcpCopied ? 'Copied' : 'Copy MCP'}
               </Button>
-              {mcpCopied && (
-                <span className="text-green-600 ml-1 font-medium">Copied!</span>
-              )}
             </div>
           </div>
 

@@ -1,0 +1,9 @@
+{
+	"servers": {
+		"tool-query-service": {
+			"url": "https://hypha.aicell.io/ws-user-google-oauth2|104255278140940970953/mcp/query-service/mcp",
+			"type": "http"
+		}
+	},
+	"inputs": []
+}

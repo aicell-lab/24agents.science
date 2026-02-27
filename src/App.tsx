@@ -90,6 +90,7 @@ const AppContent: React.FC = () => {
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/review" element={<ReviewArtifacts />} />
           <Route path="/api" element={<ApiDocs />} />
+          <Route path="/docs" element={<ApiDocs />} />
           <Route path="/toc" element={<TermsOfService />} />
           <Route path="/bioengine" element={<BioEngineHome />} />
           <Route path="/bioengine/worker" element={<BioEngineWorker />} />

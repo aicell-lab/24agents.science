@@ -87,12 +87,12 @@ const Footer: React.FC = () => {
               {/* Made with love */}
               <div className="mb-6">
                 <p className="text-lg font-semibold text-gray-700 mb-4">
-                  Made with <span role="img" aria-label="love" className="text-red-500 animate-pulse">❤️</span> by the 24agents.science community
+                  Made with <span role="img" aria-label="love" className="text-red-500 animate-pulse">❤️</span> by the 24agents community
                 </p>
               </div>
               
               <p className="text-base text-gray-700 leading-relaxed px-4 mb-4 font-medium">
-                24agents.science -- Tools and Infrastructure for Autonomous Scientific Research
+                Tools and Infrastructure for Autonomous Scientific Research
               </p>
               
               <p className="text-sm text-gray-600 leading-relaxed px-4">

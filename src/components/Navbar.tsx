@@ -6,7 +6,7 @@ import { BsDatabase, BsCollection } from 'react-icons/bs';
 import { HiOutlineBeaker } from 'react-icons/hi';
 import { IoDocumentTextOutline, IoCloudUploadOutline } from 'react-icons/io5';
 import { AiOutlineInfoCircle } from 'react-icons/ai';
-import { RiLoginBoxLine } from 'react-icons/ri';
+import UpdateIcon from '@mui/icons-material/Update';
 import { MdAutoFixHigh } from 'react-icons/md';
 import { useHyphaStore } from '../store/hyphaStore';
 
@@ -37,14 +37,16 @@ const Navbar: React.FC = () => {
   };
 
   return (
-    <nav className="sticky top-0 z-50 bg-gradient-to-r from-blue-100/90 via-purple-100/85 to-cyan-100/90 backdrop-blur-lg border-b border-blue-200/40 shadow-xl shadow-blue-300/20 h-16">
+    <nav className="sticky top-0 z-50 bg-white/90 backdrop-blur-lg border-b border-gray-200 h-16">
       <div className="max-w-[1400px] mx-auto px-6 h-full">
         <div className="flex items-center justify-between h-full">
           {/* Left section with logo */}
-          <div className="flex items-center">
+          <div className="flex items-center text-base text-gray-900">
             <Link to="/" className="flex items-center group">
-              <span className="text-2xl font-bold text-gray-800 group-hover:text-blue-600 transition-colors duration-300">
-                24Agents.Science
+              <span className="text-2xl font-bold transition-colors group-hover:text-blue-600 duration-300">
+                24
+                <UpdateIcon className="mb-1 group-hover:text-blue-600 text-blue-600" fontSize="medium" />
+                Agents
               </span>
             </Link>
           </div>
@@ -160,14 +162,6 @@ const Navbar: React.FC = () => {
               </Link>
             )}
             <Link 
-              to="/models" 
-              className={mobileNavLinkClasses("/models")}
-              onClick={() => setIsMobileMenuOpen(false)}
-            >
-              <BiCube className="mr-3" size={20} />
-              Models
-            </Link>
-            <Link 
               to="/datasets" 
               className={mobileNavLinkClasses("/datasets")}
               onClick={() => setIsMobileMenuOpen(false)}
@@ -175,19 +169,21 @@ const Navbar: React.FC = () => {
               <BsDatabase className="mr-3" size={18} />
               Datasets
             </Link>
+            <Link to="/agents" className={navLinkClasses("/agents")}>
+              <HiOutlineBeaker className="mr-2" size={20} />
+              Agents
+            </Link>
             <Link 
-              to="/applications" 
-              className={mobileNavLinkClasses("/applications")}
+              to="/query" 
+              className={mobileNavLinkClasses("/query")}
               onClick={() => setIsMobileMenuOpen(false)}
             >
-              <HiOutlineBeaker className="mr-3" size={20} />
-              Applications
+              <BiSearch className="mr-3" size={20} />
+              Query
             </Link>
             <a 
               href="https://24agents.aicell.io/docs"
               className={mobileNavLinkClasses("/docs")}
-              target="_blank"
-              rel="noopener noreferrer"
               onClick={() => setIsMobileMenuOpen(false)}
             >
               <IoDocumentTextOutline className="mr-3" size={18} />
